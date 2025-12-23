@@ -1,0 +1,18 @@
+User Flow:
+- user adds a table (from csv, excel, or other sources)
+- user can create additional tables using a node editor.
+- user can create charts from tables.
+- user can save and load projects. A project is a collection of tables and charts.
+
+
+Descriptions
+
+Node Editor:
+There are two types of nodes:
+  - data nodes, nodes associated with tables
+  - logic nodes, nodes with inputs and outputs that perform logic (transformations, joins, etc.)
+Each table has an associated graph that describes how it's created.
+
+Building Blocks:
+- KData (Kira data, e.g. tables, variables, etc.)
+-
