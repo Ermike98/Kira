@@ -24,7 +24,7 @@ K_DATETIME_TYPE = KTypeInfo(KDataType.LITERAL, {"lit_type": KLiteralType.DATETIM
 class KLiteral(KDataValue):
     def __init__(self, value, lit_type: KLiteralType = None):
         if lit_type is not None and not self.validate_type(value, lit_type):
-            raise ValueError(f"Invalid value type for KLiteral: {value}")
+            raise ValueError(f"Invalid value type: {lit_type} for KLiteral: {repr(value)}, suggested type: {self.infer_type(value)}")
 
         self._value = value
         self._type = lit_type if lit_type is not None else self.infer_type(value)
