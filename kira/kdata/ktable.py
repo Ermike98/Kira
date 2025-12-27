@@ -2,6 +2,7 @@ from kira.kdata.kdata import KData, KDataType, KTypeInfo, KDataValue
 
 import pandas as pd
 
+K_TABLE_TYPE = KTypeInfo(KDataType.TABLE)
 
 class KTable(KDataValue):
     def __init__(self, data: pd.DataFrame):

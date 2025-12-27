@@ -13,6 +13,13 @@ class KLiteralType(enum.Enum):
     DATE = 5
     DATETIME = 6
 
+K_LITERAL_TYPE = KTypeInfo(KDataType.LITERAL, {"lit_type": KLiteralType.ANY})
+K_INTEGER_TYPE = KTypeInfo(KDataType.LITERAL, {"lit_type": KLiteralType.INTEGER})
+K_NUMBER_TYPE = KTypeInfo(KDataType.LITERAL, {"lit_type": KLiteralType.NUMBER})
+K_STRING_TYPE = KTypeInfo(KDataType.LITERAL, {"lit_type": KLiteralType.STRING})
+K_BOOLEAN_TYPE = KTypeInfo(KDataType.LITERAL, {"lit_type": KLiteralType.BOOLEAN})
+K_DATE_TYPE = KTypeInfo(KDataType.LITERAL, {"lit_type": KLiteralType.DATE})
+K_DATETIME_TYPE = KTypeInfo(KDataType.LITERAL, {"lit_type": KLiteralType.DATETIME})
 
 class KLiteral(KDataValue):
     def __init__(self, value, lit_type: KLiteralType = None):
