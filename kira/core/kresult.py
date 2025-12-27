@@ -12,7 +12,9 @@ class KResult(KObject):
     Container for an operation result that can hold multiple potential objects (options).
     """
 
-    def __init__(self, options: Iterable[KData] | KData | None = None):
+    def __init__(self, name, options: Iterable[KData] | KData | None = None):
+        super().__init__(name)
+
         if options is not None and not isinstance(options, Iterable):
             options = [options]
 
