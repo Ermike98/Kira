@@ -10,6 +10,7 @@ class KNodeExceptionType(Enum):
     WRONG_OUTPUT_TYPES = "Wrong output types"
     TOO_MANY_OUTPUTS = "Too many outputs"
     INVALID_EDGE = "Invalid edge"
+    FAILED_OUTPUT = "Failed output"
 
 class KNodeException(KException):
     def __init__(self, node, exception_type: KNodeExceptionType, message: str = "", **kwargs):

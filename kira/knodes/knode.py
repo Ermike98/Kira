@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+from typing import NamedTuple
 
 from kira.kdata.kdata import KData, KTypeInfo, KDataType, KDataValue
 from kira.core.kobject import KObject
@@ -72,15 +73,22 @@ class KNode(KObject):
                 [KData(name, None, KNodeException(self, KNodeExceptionType.TOO_MANY_OUTPUTS))
                  for name in self._outputs_names])
 
-        # check output types
-        failed_out_type_checks = [(i, t) for i, t in zip(output_val, self._outputs_types) if not validate_type(i, t)]
-        if failed_out_type_checks:
-            return KResult(
-                [KData(name, None, KNodeException(self, KNodeExceptionType.WRONG_OUTPUT_TYPES,
-                                                      failed_out_type_checks=failed_out_type_checks))
-                 for name in self._outputs_names])
+        kdatas = []
 
-        return KResult([KData(name, val) for name, val in zip(self._outputs_names, output_val)])
+        for i, t, name in zip(output_val, self._outputs_types, self._outputs_names):
+            # check output is valid
+            if i.type.type == KDataType.ERROR:
+                kdatas.append(KData(name, None, KNodeException(self, KNodeExceptionType.FAILED_OUTPUT,
+                                                               failed_output=i.value)))
+            # check output type
+            elif not validate_type(i, t):
+                kdatas.append(KData(name, None, KNodeException(self, KNodeExceptionType.WRONG_OUTPUT_TYPES,
+                                                               failed_out_type_checks=(i, t))))
+            # output is valid
+            else:
+                kdatas.append(KData(name, i))
+
+        return KResult(kdatas)
 
 
     @property
