@@ -8,12 +8,11 @@ class KObjectType(enum.Enum):
 
 class KObject(ABC):
 
-    @abstractmethod
     def __init__(self, name: str = None):
         self.__name = name if name is not None else self.__class__.__name__
 
-    @abstractmethod
     @property
+    @abstractmethod
     def object_type(self) -> KObjectType:
         pass
 
