@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from kira.core.kobject import KObject, KObjectType
 from kira.kdata.kdata import KData
 from kira.kexpections.missing_result import KMissingResults
 
 
-class KResult:
+class KResult(KObject):
     """
     Container for an operation result that can hold multiple potential objects (options).
     """
@@ -32,3 +33,6 @@ class KResult:
         return all(self._options)
 
 
+    @property
+    def object_type(self) -> KObjectType:
+        return KObjectType.KRESULT

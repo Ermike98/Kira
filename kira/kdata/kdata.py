@@ -1,7 +1,7 @@
 from abc import abstractmethod, ABC
 from typing import NamedTuple, Any
 
-from kira.core.kobject import KObject
+from kira.core.kobject import KObject, KObjectType
 
 import enum
 
@@ -61,6 +61,10 @@ class KData(KObject):
     @property
     def type(self) -> KTypeInfo:
         return self._value.type if self._value is not None else KTypeInfo(KDataType.ERROR)
+
+    @property
+    def object_type(self) -> KObjectType:
+        return KObjectType.KDATA
 
     def __repr__(self):
         return f"{self.name}[{self.type.type}]: {self.value}"

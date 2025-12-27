@@ -4,7 +4,7 @@ from abc import abstractmethod
 from typing import NamedTuple
 
 from kira.kdata.kdata import KData, KTypeInfo, KDataType, KDataValue
-from kira.core.kobject import KObject
+from kira.core.kobject import KObject, KObjectType
 from kira.core.kresult import KResult
 
 import enum
@@ -106,3 +106,14 @@ class KNode(KObject):
     @property
     def output_types(self) -> list[KTypeInfo]:
         return self._outputs_types
+
+    @property
+    def object_type(self) -> KObjectType:
+        return KObjectType.KNODE
+
+class KNodeInstance(NamedTuple):
+    node: KNode
+    name: str
+
+    def __call__(self, inputs: dict[str, KData]) -> KResult:
+        return KResult(self.name, self.node(inputs))
