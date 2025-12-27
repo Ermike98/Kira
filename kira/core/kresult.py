@@ -4,7 +4,7 @@ from typing import Iterable
 
 from kira.core.kobject import KObject, KObjectType
 from kira.kdata.kdata import KData
-from kira.kexpections.missing_result import KMissingResults
+from kira.kexpections.missing_result import KMissingResult
 
 
 class KResult(KObject):
@@ -23,7 +23,7 @@ class KResult(KObject):
             if option.name == name:
                 return option
 
-        return KData(name, None, KMissingResults(name))
+        return KData(name, None, KMissingResult(name, f"Missing result '{name}' in KResult '{self.name}'"))
 
     @property
     def results(self) -> list[KData]:
