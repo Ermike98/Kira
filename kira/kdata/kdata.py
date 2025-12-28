@@ -12,7 +12,8 @@ class KDataType(enum.Enum):
     ANY = 0
     TABLE = 1
     LITERAL = 2
-    ERROR = 3
+    ARRAY = 3
+    ERROR = 4
 
 
 class KTypeInfo(NamedTuple):

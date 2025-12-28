@@ -17,6 +17,7 @@ class KNodeType(enum.Enum):
     FUNCTION = 1
     WORKFLOW = 2
 
+
 class KNode(KObject):
 
     def __init__(self,
@@ -27,7 +28,8 @@ class KNode(KObject):
         super().__init__(name=name)
 
         self._input_names = [el if isinstance(el, str) else el[0] for el in inputs]
-        self._input_types: list[KTypeInfo] = [KTypeInfo(KDataType.ANY) if isinstance(el, str) else el[1] for el in inputs]
+        self._input_types: list[KTypeInfo] = [KTypeInfo(KDataType.ANY) if isinstance(el, str) else el[1] for el in
+                                              inputs]
 
         self._outputs_names = [el if isinstance(el, str) else el[0] for el in outputs]
         self._outputs_types: list[KTypeInfo] = [KTypeInfo(KDataType.ANY) if isinstance(el, str) else el[1] for el in
@@ -46,7 +48,7 @@ class KNode(KObject):
         missing_input_names = [name for name in self._input_names if (name not in inputs) or (not inputs[name])]
         if missing_input_names:
             return [KData(name, None, KNodeException(self, KNodeExceptionType.MISSING_INPUTS,
-                                                  missing_input_names=missing_input_names))
+                                                     missing_input_names=missing_input_names))
                     for name in self._outputs_names]
 
         # if all input names are valid, check types
@@ -54,7 +56,7 @@ class KNode(KObject):
         failed_in_type_checks = [(i, t) for i, t in zip(input_vals, self._input_types) if not validate_type(i.value, t)]
         if failed_in_type_checks:
             return [KData(name, None, KNodeException(self, KNodeExceptionType.WRONG_INPUT_TYPES,
-                                                  failed_in_type_checks=failed_in_type_checks))
+                                                     failed_in_type_checks=failed_in_type_checks))
                     for name in self._outputs_names]
 
         output_val = self.call(input_vals)
@@ -63,7 +65,7 @@ class KNode(KObject):
         if len(output_val) < len(self._outputs_names):
             missing_output_names = [name for name in self._input_names if name not in inputs]
             return [KData(name, None, KNodeException(self, KNodeExceptionType.MISSING_OUTPUTS,
-                                                  missing_input_names=missing_output_names))
+                                                     missing_input_names=missing_output_names))
                     for name in self._outputs_names]
         elif len(output_val) > len(self._outputs_names):
             return [KData(name, None, KNodeException(self, KNodeExceptionType.TOO_MANY_OUTPUTS))
@@ -86,7 +88,6 @@ class KNode(KObject):
 
         return kdata_list
 
-
     @property
     def input_names(self) -> list[str]:
         return self._input_names
@@ -106,6 +107,7 @@ class KNode(KObject):
     @property
     def object_type(self) -> KObjectType:
         return KObjectType.KNODE
+
 
 class KNodeInstance(NamedTuple):
     node: KNode
