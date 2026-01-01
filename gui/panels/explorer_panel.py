@@ -27,6 +27,8 @@ class ExplorerPanel(QFrame):
     
     # Signal emitted when an element is selected
     element_selected = Signal(object)  # Emits the selected element
+    # Signal emitted when an element is double clicked
+    element_double_clicked = Signal(object)  # Emits the double clicked element
     # Signal emitted when a workflow should be opened in a new tab
     workflow_opened = Signal(object)  # Emits the KWorkflow to open
     # Signal emitted when an element should be deleted
@@ -406,6 +408,9 @@ class ExplorerPanel(QFrame):
 
     def _on_element_double_clicked(self, element: Any):
         """Handle element button double click."""
+        self.element_double_clicked.emit(element)
+        
+        # Legacy support: also emit workflow_opened if it's a workflow
         from kira.knodes.kworkflow import KWorkflow
         if isinstance(element, KWorkflow):
             self.workflow_opened.emit(element)

@@ -10,6 +10,7 @@ from PySide6.QtGui import QAction
 
 from .homepage import HomepageTab
 from .workflow_tab import WorkflowTab
+from .table_tab import TableTab
 from .styles import LIGHT_THEME
 from gui.kproject import KProject
 
@@ -44,6 +45,7 @@ class MainWindow(QMainWindow):
         # Create and add homepage tab (fixed, not closable)
         self._homepage = HomepageTab(self._project)
         self._homepage.workflow_opened.connect(self._on_workflow_opened)
+        self._homepage.table_opened.connect(self._on_table_opened)
         self._homepage_index = self._tab_widget.addTab(self._homepage, "Homepage")
         
         # Make homepage tab not closable
@@ -99,6 +101,29 @@ class MainWindow(QMainWindow):
         # Open a new tab
         new_tab = WorkflowTab(self._project, workflow)
         index = self._tab_widget.addTab(new_tab, workflow.name)
+        self._tab_widget.setCurrentIndex(index)
+    
+    def _on_table_opened(self, element):
+        """Handle table opening in a new tab."""
+        # Unpack value if it's a KData wrapper
+        from kira.kdata.kdata import KData
+        if isinstance(element, KData):
+            table = element.value
+            name = element.name
+        else:
+            table = element
+            name = "Table"
+            
+        # Check if the table is already open
+        for i in range(self._tab_widget.count()):
+            tab = self._tab_widget.widget(i)
+            if isinstance(tab, TableTab) and tab.table == table:
+                self._tab_widget.setCurrentIndex(i)
+                return
+        
+        # Open a new tab
+        new_tab = TableTab(table, name)
+        index = self._tab_widget.addTab(new_tab, f"Table: {name}")
         self._tab_widget.setCurrentIndex(index)
     
     def _add_test_elements(self):

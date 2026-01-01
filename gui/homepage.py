@@ -24,6 +24,8 @@ class HomepageTab(QWidget):
     
     # Signal emitted when a workflow should be opened in a new tab
     workflow_opened = Signal(object)
+    # Signal emitted when a table should be opened in a new tab
+    table_opened = Signal(object)
     
     def __init__(self, project: KProject, parent=None):
         super().__init__(parent)
@@ -90,7 +92,10 @@ class HomepageTab(QWidget):
     def _connect_signals(self):
         """Connect signals between panels and project."""
         # When an element is selected in explorer, show its preview
-        self._explorer_panel.element_selected.connect(self._preview_panel.show_preview)
+        self._explorer_panel.element_selected.connect(self._on_element_selected)
+        
+        # When an element is double clicked
+        self._explorer_panel.element_double_clicked.connect(self._on_element_double_clicked)
         
         # When a workflow is requested to be opened
         self._explorer_panel.workflow_opened.connect(self.workflow_opened.emit)
@@ -137,6 +142,33 @@ class HomepageTab(QWidget):
             self._preview_panel.show_preview(source)
             # You might also want to scroll to/highlight it in the explorer, 
             # but for now preview is the main 'jump' target.
+            
+    def _on_element_selected(self, element: Any):
+        """Handle element selection from explorer."""
+        # Only update preview panel
+        self._preview_panel.show_preview(element)
+
+    def _on_element_double_clicked(self, element: Any):
+        """Handle element double click to open via tabs."""
+        from kira.kdata.kdata import KData, KDataType
+        from kira.knodes.kworkflow import KWorkflow
+        from kira.kdata.ktable import KTable
+        
+        # Check if it's a KData object
+        if isinstance(element, KData):
+            match element.type.type:
+                case KDataType.TABLE:
+                    self.table_opened.emit(element)
+                case KDataType.WORKFLOW:
+                    pass
+                case _:
+                    pass
+        
+        # Legacy/Accessory checks
+        elif isinstance(element, KWorkflow):
+            self.workflow_opened.emit(element)
+        elif hasattr(element, 'value') and isinstance(element.value, KTable):
+            self.table_opened.emit(element)
     
     @property
     def explorer_panel(self) -> ExplorerPanel:
