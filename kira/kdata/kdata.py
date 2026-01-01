@@ -1,5 +1,8 @@
 from abc import abstractmethod, ABC
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from kira.core.kcontext import KContext
 from kira.core.kobject import KObject, KTypeInfo
 
 import enum
@@ -49,6 +52,9 @@ class KData(KObject):
 
         self._value = value
         self._error = error
+
+    def eval(self, context: 'KContext'):
+        return self
 
     @property
     def value(self):

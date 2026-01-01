@@ -1,6 +1,10 @@
 from __future__ import annotations
 import enum
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from kira.core.kcontext import KContext
 
 class KObjectType(enum.Enum):
     KDATA = 1
@@ -22,6 +26,10 @@ class KObject(ABC):
     @property
     @abstractmethod
     def type(self) -> KTypeInfo:
+        pass
+
+    @abstractmethod
+    def eval(self, context: KContext):
         pass
 
     @property

@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import NamedTuple
+from typing import NamedTuple, TYPE_CHECKING
 
-from kira.kdata.kdata import KData, KDataType, KDataValue
-from kira.core.kobject import KObject, KObjectType, KTypeInfo
+if TYPE_CHECKING:
+    from kira.core.kcontext import KContext
+from kira.kdata.kdata import KData, KDataValue
+from kira.core.kobject import KObject, KTypeInfo
 from kira.core.kresult import KResult
 
 import enum
 
+from kira.kexpections.kexception import KExceptionTypeInfo
 from kira.kexpections.knode_exception import KNodeException, KNodeExceptionType
 from kira.ktypeinfo.no_type import KNoTypeInfo
 
@@ -44,11 +47,15 @@ class KNode(KObject):
     # def instantiate(self, inputs: dict[str, KData]) -> KResult[KData]:
     #     pass
 
+    def eval(self, context: KContext):
+        inputs = {name: context.get_object(name) for name in self._input_names}
+        return KResult(f"result_{self.name}", self(inputs))
+
     @abstractmethod
-    def call(self, inputs: list[KData]) -> list[KDataValue]:
+    def call(self, inputs: list[KObject]) -> list[KDataValue]:
         pass
 
-    def __call__(self, inputs: dict[str, KData]) -> list[KData]:
+    def __call__(self, inputs: dict[str, KObject]) -> list[KData]:
         # check input names
         missing_input_names = [name for name in self._input_names if (name not in inputs) or (not inputs[name])]
         if missing_input_names:
@@ -80,11 +87,11 @@ class KNode(KObject):
 
         for i, t, name in zip(output_val, self._outputs_types, self._outputs_names):
             # check output is valid
-            if i.type.type == KDataType.ERROR:
+            if isinstance(i.type, KExceptionTypeInfo):
                 kdata_list.append(KData(name, None, KNodeException(self, KNodeExceptionType.FAILED_OUTPUT,
                                                                    failed_output=i.value)))
             # check output type
-            elif t.match(KData(name, i)):
+            elif not t.match(KData(name, i)):
                 kdata_list.append(KData(name, None, KNodeException(self, KNodeExceptionType.WRONG_OUTPUT_TYPES,
                                                                    failed_out_type_checks=(i, t))))
             # output is valid

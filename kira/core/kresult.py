@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from typing import Iterable
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from kira.core.kcontext import KContext
 from kira.core.kobject import KObject, KObjectType
 from kira.kdata.kdata import KData
 from kira.kexpections.missing_result import KMissingResult
@@ -19,6 +22,9 @@ class KResult(KObject):
             options = [options]
 
         self._options: list[KData] = list(options) if options is not None else []
+
+    def eval(self, context: 'KContext'):
+        return self
 
     def get(self, name: str) -> KData:
         for option in self._options:
