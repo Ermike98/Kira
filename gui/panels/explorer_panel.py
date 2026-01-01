@@ -21,14 +21,14 @@ class ExplorerButton(QPushButton):
 
 class ExplorerPanel(QFrame):
     """
-    Top-left panel showing all project elements (data, nodes, charts, etc.).
+    The top-left panel showing all project elements (data, nodes, charts, etc.).
     Each element is displayed as a button that can be clicked to show its preview.
     """
     
     # Signal emitted when an element is selected
     element_selected = Signal(object)  # Emits the selected element
-    # Signal emitted when an element is double clicked
-    element_double_clicked = Signal(object)  # Emits the double clicked element
+    # Signal emitted when an element is double-clicked
+    element_double_clicked = Signal(object)  # Emits the double-clicked element
     # Signal emitted when a workflow should be opened in a new tab
     workflow_opened = Signal(object)  # Emits the KWorkflow to open
     # Signal emitted when an element should be deleted
