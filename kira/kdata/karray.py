@@ -36,4 +36,4 @@ class KArray(KDataValue):
     @property
     def type(self) -> KTypeInfo:
         # TODO Fix default el_type
-        return KTypeInfo(KDataType.ARRAY, {"el_type": KLiteralType.ANY})
+        return KArrayTypeInfo(KLiteralType.ANY)
