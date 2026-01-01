@@ -1,5 +1,6 @@
-from kira.kdata.kdata import KDataValue, KTypeInfo, KDataType
-from kira.kexpections.kexception import KException
+from kira.kdata.kdata import KDataValue
+from kira.core.kobject import KTypeInfo
+from kira.kexpections.kexception import KException, KExceptionTypeInfo
 
 
 class KErrorValue(KDataValue):
@@ -12,4 +13,4 @@ class KErrorValue(KDataValue):
 
     @property
     def type(self) -> KTypeInfo:
-        return KTypeInfo(KDataType.ERROR)
+        return KExceptionTypeInfo()

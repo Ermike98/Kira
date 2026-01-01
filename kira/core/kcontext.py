@@ -12,7 +12,7 @@ class KContext:
 
         self._objects[obj.name] = obj
 
-        if obj.object_type != KObjectType.KRESULT:
+        if obj.type != KObjectType.KRESULT:
             return self
 
         # If obj is a KResult store also the individual KData objects

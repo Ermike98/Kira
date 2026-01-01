@@ -1,3 +1,4 @@
+from __future__ import annotations
 import enum
 from abc import ABC, abstractmethod
 
@@ -5,6 +6,13 @@ class KObjectType(enum.Enum):
     KDATA = 1
     KNODE = 2
     KRESULT = 3
+    KEXCEPTION = 4
+
+
+class KTypeInfo(ABC):
+    @abstractmethod
+    def match(self, value: KObject) -> bool:
+        pass
 
 class KObject(ABC):
 
@@ -13,7 +21,7 @@ class KObject(ABC):
 
     @property
     @abstractmethod
-    def object_type(self) -> KObjectType:
+    def type(self) -> KTypeInfo:
         pass
 
     @property

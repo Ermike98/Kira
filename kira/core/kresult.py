@@ -36,5 +36,5 @@ class KResult(KObject):
 
 
     @property
-    def object_type(self) -> KObjectType:
+    def type(self) -> KObjectType:
         return KObjectType.KRESULT

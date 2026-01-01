@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
-from kira.kdata.kdata import KData, KTypeInfo, KDataValue
+from kira.kdata.kdata import KData, KDataValue
+from kira.core.kobject import KTypeInfo
 from kira.knodes.knode import KNode, KNodeType
 
 import inspect

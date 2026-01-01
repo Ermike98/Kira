@@ -1,11 +1,10 @@
 from abc import abstractmethod, ABC
-from typing import NamedTuple, Any
 
-from kira.core.kobject import KObject, KObjectType
+from kira.core.kobject import KObject, KTypeInfo
 
 import enum
 
-from kira.kexpections.kexception import KException
+from kira.kexpections.kexception import KException, KExceptionTypeInfo
 
 
 class KDataType(enum.Enum):
@@ -16,9 +15,9 @@ class KDataType(enum.Enum):
     ERROR = 4
 
 
-class KTypeInfo(NamedTuple):
-    type: KDataType
-    metadata: dict[str, Any] = None
+class KDataTypeInfo(KTypeInfo):
+    def match(self, value: KObject) -> bool:
+        return isinstance(value, KData)
 
 
 class KDataValue(ABC):
@@ -61,14 +60,10 @@ class KData(KObject):
 
     @property
     def type(self) -> KTypeInfo:
-        return self._value.type if self._value is not None else KTypeInfo(KDataType.ERROR)
-
-    @property
-    def object_type(self) -> KObjectType:
-        return KObjectType.KDATA
+        return self._value.type if self._value is not None else KExceptionTypeInfo()
 
     def __repr__(self):
-        return f"{self.name}[{self.type.type}]: {self.value}"
+        return f"{self.name}[{self.type}]: {self.value}"
 
     def __bool__(self) -> bool:
         return self.value is not None

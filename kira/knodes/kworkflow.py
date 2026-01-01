@@ -3,7 +3,8 @@ from typing import NamedTuple
 from graphlib import TopologicalSorter, CycleError
 
 from kira.core.kcontext import KContext
-from kira.kdata.kdata import KData, KTypeInfo, KDataValue
+from kira.kdata.kdata import KData, KDataValue
+from kira.core.kobject import KTypeInfo
 from kira.kdata.kerrorvalue import KErrorValue
 from kira.kexpections.kgenericexception import KGenericException
 from kira.knodes.knode import KNode, KNodeType, KNodeInstance

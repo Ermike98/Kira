@@ -3,19 +3,24 @@ from __future__ import annotations
 from abc import abstractmethod
 from typing import NamedTuple
 
-from kira.kdata.kdata import KData, KTypeInfo, KDataType, KDataValue
-from kira.core.kobject import KObject, KObjectType
+from kira.kdata.kdata import KData, KDataType, KDataValue
+from kira.core.kobject import KObject, KObjectType, KTypeInfo
 from kira.core.kresult import KResult
 
 import enum
 
 from kira.kexpections.knode_exception import KNodeException, KNodeExceptionType
-from kira.knodes.validate_types import validate_type
+from kira.ktypeinfo.no_type import KNoTypeInfo
 
 
 class KNodeType(enum.Enum):
     FUNCTION = 1
     WORKFLOW = 2
+
+
+class KNodeTypeInfo(KTypeInfo):
+    def match(self, value: KObject) -> bool:
+        return isinstance(value, KNode)
 
 
 class KNode(KObject):
@@ -28,11 +33,11 @@ class KNode(KObject):
         super().__init__(name=name)
 
         self._input_names = [el if isinstance(el, str) else el[0] for el in inputs]
-        self._input_types: list[KTypeInfo] = [KTypeInfo(KDataType.ANY) if isinstance(el, str) else el[1] for el in
+        self._input_types: list[KTypeInfo] = [KNoTypeInfo() if isinstance(el, str) else el[1] for el in
                                               inputs]
 
         self._outputs_names = [el if isinstance(el, str) else el[0] for el in outputs]
-        self._outputs_types: list[KTypeInfo] = [KTypeInfo(KDataType.ANY) if isinstance(el, str) else el[1] for el in
+        self._outputs_types: list[KTypeInfo] = [KNoTypeInfo() if isinstance(el, str) else el[1] for el in
                                                 outputs]
 
     # @abstractmethod
@@ -53,7 +58,7 @@ class KNode(KObject):
 
         # if all input names are valid, check types
         input_vals = [inputs[name] for name in self._input_names]
-        failed_in_type_checks = [(i, t) for i, t in zip(input_vals, self._input_types) if not validate_type(i.value, t)]
+        failed_in_type_checks = [(i, t) for i, t in zip(input_vals, self._input_types) if not t.match(i)]
         if failed_in_type_checks:
             return [KData(name, None, KNodeException(self, KNodeExceptionType.WRONG_INPUT_TYPES,
                                                      failed_in_type_checks=failed_in_type_checks))
@@ -79,7 +84,7 @@ class KNode(KObject):
                 kdata_list.append(KData(name, None, KNodeException(self, KNodeExceptionType.FAILED_OUTPUT,
                                                                    failed_output=i.value)))
             # check output type
-            elif not validate_type(i, t):
+            elif t.match(KData(name, i)):
                 kdata_list.append(KData(name, None, KNodeException(self, KNodeExceptionType.WRONG_OUTPUT_TYPES,
                                                                    failed_out_type_checks=(i, t))))
             # output is valid
@@ -105,8 +110,8 @@ class KNode(KObject):
         return self._outputs_types
 
     @property
-    def object_type(self) -> KObjectType:
-        return KObjectType.KNODE
+    def type(self) -> KTypeInfo:
+        return KNodeTypeInfo()
 
 
 class KNodeInstance(NamedTuple):

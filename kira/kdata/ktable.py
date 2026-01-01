@@ -1,8 +1,18 @@
-from kira.kdata.kdata import KData, KDataType, KTypeInfo, KDataValue
+from kira.kdata.kdata import KData, KDataValue
+from kira.core.kobject import KTypeInfo, KObject
 
 import pandas as pd
 
-K_TABLE_TYPE = KTypeInfo(KDataType.TABLE)
+
+class KTableTypeInfo(KTypeInfo):
+
+    def match(self, value: KObject) -> bool:
+        return (isinstance(value, KData) and
+                value and
+                isinstance(value.value, KTable)
+                )
+
+K_TABLE_TYPE = KTableTypeInfo()
 
 class KTable(KDataValue):
     def __init__(self, data: pd.DataFrame):
@@ -15,4 +25,4 @@ class KTable(KDataValue):
 
     @property
     def type(self) -> KTypeInfo:
-        return KTypeInfo(KDataType.TABLE)
+        return KTableTypeInfo()

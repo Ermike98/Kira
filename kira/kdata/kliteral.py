@@ -1,7 +1,8 @@
 import datetime
 import enum
 
-from kira.kdata.kdata import KDataType, KTypeInfo, KDataValue
+from kira.kdata.kdata import KDataValue, KData
+from kira.core.kobject import KTypeInfo, KObject
 
 
 class KLiteralType(enum.Enum):
@@ -13,18 +14,33 @@ class KLiteralType(enum.Enum):
     DATE = 5
     DATETIME = 6
 
-K_LITERAL_TYPE = KTypeInfo(KDataType.LITERAL, {"lit_type": KLiteralType.ANY})
-K_INTEGER_TYPE = KTypeInfo(KDataType.LITERAL, {"lit_type": KLiteralType.INTEGER})
-K_NUMBER_TYPE = KTypeInfo(KDataType.LITERAL, {"lit_type": KLiteralType.NUMBER})
-K_STRING_TYPE = KTypeInfo(KDataType.LITERAL, {"lit_type": KLiteralType.STRING})
-K_BOOLEAN_TYPE = KTypeInfo(KDataType.LITERAL, {"lit_type": KLiteralType.BOOLEAN})
-K_DATE_TYPE = KTypeInfo(KDataType.LITERAL, {"lit_type": KLiteralType.DATE})
-K_DATETIME_TYPE = KTypeInfo(KDataType.LITERAL, {"lit_type": KLiteralType.DATETIME})
+
+class KLiteralTypeInfo(KTypeInfo):
+    def __init__(self, lit_type: KLiteralType):
+        self._lit_type = lit_type
+
+    def match(self, value: KObject) -> bool:
+        return (isinstance(value, KData) and
+                value and
+                isinstance(value.value, KLiteral) and
+                ((self._lit_type == KLiteralType.ANY) or (self._lit_type == value.value.lit_type))
+                )
+
+
+K_LITERAL_TYPE = KLiteralTypeInfo(KLiteralType.ANY)
+K_INTEGER_TYPE = KLiteralTypeInfo(KLiteralType.INTEGER)
+K_NUMBER_TYPE = KLiteralTypeInfo(KLiteralType.NUMBER)
+K_STRING_TYPE = KLiteralTypeInfo(KLiteralType.STRING)
+K_BOOLEAN_TYPE = KLiteralTypeInfo(KLiteralType.BOOLEAN)
+K_DATE_TYPE = KLiteralTypeInfo(KLiteralType.DATE)
+K_DATETIME_TYPE = KLiteralTypeInfo(KLiteralType.DATETIME)
+
 
 class KLiteral(KDataValue):
     def __init__(self, value, lit_type: KLiteralType = None):
         if lit_type is not None and not self.validate_type(value, lit_type):
-            raise ValueError(f"Invalid value type: {lit_type} for KLiteral: {repr(value)}, suggested type: {self.infer_type(value)}")
+            raise ValueError(
+                f"Invalid value type: {lit_type} for KLiteral: {repr(value)}, suggested type: {self.infer_type(value)}")
 
         self._value = value
         self._type = lit_type if lit_type is not None else self.infer_type(value)
@@ -77,7 +93,7 @@ class KLiteral(KDataValue):
 
     @property
     def type(self) -> KTypeInfo:
-        return KTypeInfo(KDataType.LITERAL, {"lit_type": self._type})
+        return KLiteralTypeInfo(self._type)
 
     def __repr__(self):
         return f"<{self.type}: {self.value}>"
