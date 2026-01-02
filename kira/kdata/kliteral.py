@@ -99,4 +99,4 @@ class KLiteral(KDataValue):
         return KLiteralTypeInfo(self._type)
 
     def __repr__(self):
-        return f"<{self.type}: {self.value}>"
+        return f"KLiteral({repr(self._value)}, KLiteralType.{self._type.name})"
