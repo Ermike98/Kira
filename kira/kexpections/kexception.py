@@ -13,6 +13,9 @@ class KExceptionTypeInfo(KTypeInfo):
     def match(self, value) -> bool:
         return isinstance(value, KException)
 
+    def __repr__(self) -> str:
+        return "KExceptionTypeInfo()"
+
 
 class KException(KObject):
 

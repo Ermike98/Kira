@@ -22,6 +22,9 @@ class KDataTypeInfo(KTypeInfo):
     def match(self, value: KObject) -> bool:
         return isinstance(value, KData)
 
+    def __repr__(self) -> str:
+        return "KDataTypeInfo()"
+
 
 class KDataValue(ABC):
 

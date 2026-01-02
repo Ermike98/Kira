@@ -12,6 +12,9 @@ class KTableTypeInfo(KTypeInfo):
                 isinstance(value.value, KTable)
                 )
 
+    def __repr__(self) -> str:
+        return "KTableTypeInfo()"
+
 K_TABLE_TYPE = KTableTypeInfo()
 
 class KTable(KDataValue):

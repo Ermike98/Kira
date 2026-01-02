@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from kira.core.kcontext import KContext
 
+
 class KObjectType(enum.Enum):
     KDATA = 1
     KNODE = 2
@@ -17,6 +18,13 @@ class KTypeInfo(ABC):
     @abstractmethod
     def match(self, value: KObject) -> bool:
         pass
+
+    @abstractmethod
+    def __repr__(self) -> str:
+        pass
+
+    def __hash__(self):
+        return hash(repr(self))
 
 class KObject(ABC):
 

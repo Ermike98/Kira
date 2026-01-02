@@ -26,6 +26,9 @@ class KLiteralTypeInfo(KTypeInfo):
                 ((self._lit_type == KLiteralType.ANY) or (self._lit_type == value.value.lit_type))
                 )
 
+    def __repr__(self) -> str:
+        return f"KLiteralTypeInfo({self._lit_type.name})"
+
 
 K_LITERAL_TYPE = KLiteralTypeInfo(KLiteralType.ANY)
 K_INTEGER_TYPE = KLiteralTypeInfo(KLiteralType.INTEGER)

@@ -25,6 +25,9 @@ class KNodeTypeInfo(KTypeInfo):
     def match(self, value: KObject) -> bool:
         return isinstance(value, KNode)
 
+    def __repr__(self) -> str:
+        return "KNodeTypeInfo()"
+
 
 class KNode(KObject):
 

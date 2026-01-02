@@ -16,6 +16,9 @@ class KArrayTypeInfo(KTypeInfo):
                 # ((self._lit_type == KLiteralType.ANY) or (self._lit_type == value.value.lit_type))
                 )
 
+    def __repr__(self) -> str:
+        return f"KArrayTypeInfo({self._lit_type.name})"
+
 K_ARRAY_TYPE = KArrayTypeInfo(KLiteralType.ANY)
 K_ARRAY_INTEGER_TYPE = KArrayTypeInfo(KLiteralType.INTEGER)
 K_ARRAY_NUMBER_TYPE = KArrayTypeInfo(KLiteralType.NUMBER)
