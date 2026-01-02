@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import NamedTuple, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from kira.core.kcontext import KContext
@@ -50,15 +50,15 @@ class KNode(KObject):
     # def instantiate(self, inputs: dict[str, KData]) -> KResult[KData]:
     #     pass
 
-    def eval(self, context: KContext):
+    def eval(self, context: KContext) -> KResult:
         inputs = {name: context.get_object(name) for name in self._input_names}
-        return KResult(f"result_{self.name}", self(inputs))
+        return KResult(f"result_{self.name}", self(inputs, context))
 
     @abstractmethod
-    def call(self, inputs: list[KObject]) -> list[KDataValue]:
+    def call(self, inputs: list[KObject], context: KContext) -> list[KDataValue]:
         pass
 
-    def __call__(self, inputs: dict[str, KObject]) -> list[KData]:
+    def __call__(self, inputs: dict[str, KObject], context: KContext) -> list[KData]:
         # check input names
         missing_input_names = [name for name in self._input_names if (name not in inputs) or (not inputs[name])]
         if missing_input_names:
@@ -74,7 +74,7 @@ class KNode(KObject):
                                                      failed_in_type_checks=failed_in_type_checks))
                     for name in self._outputs_names]
 
-        output_val = self.call(input_vals)
+        output_val = self.call(input_vals, context)
 
         # check output size
         if len(output_val) < len(self._outputs_names):
@@ -122,11 +122,3 @@ class KNode(KObject):
     @property
     def type(self) -> KTypeInfo:
         return KNodeTypeInfo()
-
-
-class KNodeInstance(NamedTuple):
-    node: KNode
-    name: str
-
-    def __call__(self, inputs: dict[str, KData]) -> KResult:
-        return KResult(self.name, self.node(inputs))

@@ -56,7 +56,8 @@ class KData(KObject):
         self._value = value
         self._error = error
 
-    def eval(self, context: 'KContext'):
+    def eval(self, context: 'KContext') -> 'KData':
+        context.register_object(self)
         return self
 
     @property

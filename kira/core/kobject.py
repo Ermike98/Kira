@@ -37,7 +37,7 @@ class KObject(ABC):
         pass
 
     @abstractmethod
-    def eval(self, context: KContext):
+    def eval(self, context: KContext) -> KObject:
         pass
 
     @property

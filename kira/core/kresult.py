@@ -23,7 +23,7 @@ class KResult(KObject):
 
         self._options: list[KData] = list(options) if options is not None else []
 
-    def eval(self, context: 'KContext'):
+    def eval(self, context: 'KContext') -> KResult:
         return self
 
     def get(self, name: str) -> KData:

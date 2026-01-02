@@ -1,5 +1,6 @@
 from collections.abc import Callable
 
+from kira.core.kcontext import KContext
 from kira.kdata.kdata import KData, KDataValue
 from kira.core.kobject import KTypeInfo
 from kira.knodes.knode import KNode, KNodeType
@@ -11,26 +12,27 @@ class KFunction(KNode):
 
     def __init__(self,
                  name: str,
-                 func: Callable[[list[KDataValue]], list[KDataValue]],
+                 func: Callable[[list[KData], KContext], list[KDataValue]],
                  inputs: list[tuple[str, KTypeInfo] | str],
                  outputs: list[tuple[str, KTypeInfo] | str]
                  ):
         super().__init__(name, inputs, outputs)
         self._func = func
 
-    def call(self, inputs: list[KData]) -> list[KDataValue]:
-        input_vals = [i.value for i in inputs]
-        return self._func(input_vals)
+    def call(self, inputs: list[KData], context: KContext) -> list[KDataValue]:
+        return self._func(inputs, context)
 
-    @property
-    def type(self) -> KNodeType:
-        return KNodeType.FUNCTION
+    # @property
+    # def type(self) -> KNodeType:
+    #     return KNodeType.FUNCTION
 
 
 def kfunction(
         inputs: list[tuple[str, KTypeInfo] | str],
         outputs: list[tuple[str, KTypeInfo] | str],
-        name: str = None
+        name: str = None,
+        use_context: bool = False,
+        use_values: bool = True
 ):
     def decorator(func: Callable):
         # 1. Validate the function signature for variadic arguments
@@ -43,7 +45,7 @@ def kfunction(
 
         # 2. Check that the number of inputs matches the function signature
         # This prevents runtime errors when unpacking
-        if len(inputs) != len(sig.parameters):
+        if len(inputs) != (len(sig.parameters) - use_context):
             raise ValueError(
                 f"KFunction '{func.__name__}' expects {len(sig.parameters)} arguments, "
                 f"but {len(inputs)} inputs were defined in the decorator."
@@ -51,8 +53,11 @@ def kfunction(
 
         # 3. Create the wrapper to unpack the list into individual arguments
         @wraps(func)
-        def wrapper(values: list[KDataValue]) -> list[KDataValue]:
-            return func(*values)
+        def wrapper(values: list[KData], context: KContext) -> list[KDataValue]:
+            if use_values:
+                values = [i.value for i in values]
+
+            return func(*values, context=context) if use_context else func(*values)
 
         # 4. Return the KFunction instance
         return KFunction(

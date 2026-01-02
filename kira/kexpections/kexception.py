@@ -19,7 +19,7 @@ class KExceptionTypeInfo(KTypeInfo):
 
 class KException(KObject):
 
-    def eval(self, context: 'KContext'):
+    def eval(self, context: 'KContext') -> 'KException':
         return self
 
     @property
