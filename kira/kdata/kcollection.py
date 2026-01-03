@@ -7,7 +7,7 @@ from kira.kdata.kdata import KData, KDataValue
 from kira.kexpections.missing_result import KMissingResult
 
 
-class KResultTypeInfo(KTypeInfo):
+class KCollectionTypeInfo(KTypeInfo):
     def __init__(self, fields: dict[str, KTypeInfo] | None = None):
         self._fields = fields
 
@@ -15,7 +15,7 @@ class KResultTypeInfo(KTypeInfo):
     def match(self, value: KObject) -> bool:
         valid_value = (isinstance(value, KData) and
                        value and
-                       isinstance(value.value, KResult)
+                       isinstance(value.value, KCollection)
                        )
 
         if self._fields is None:
@@ -23,14 +23,14 @@ class KResultTypeInfo(KTypeInfo):
 
         res = value.value
 
-        assert isinstance(res, KResult)
+        assert isinstance(res, KCollection)
 
         return valid_value and all([type_info.match(res.get(key)) for key, type_info in self._fields.items()])
 
     def __repr__(self) -> str:
         return "KResultTypeInfo()"
 
-class KResult(KDataValue):
+class KCollection(KDataValue):
     """
     Container for an operation result that can hold multiple potential objects (options).
     """
@@ -58,4 +58,4 @@ class KResult(KDataValue):
 
     @property
     def type(self) -> KTypeInfo:
-        return KResultTypeInfo({option.name: option.type for option in self._options})
+        return KCollectionTypeInfo({option.name: option.type for option in self._options})

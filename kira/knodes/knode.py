@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from kira.core.kcontext import KContext
 from kira.kdata.kdata import KData, KDataValue
 from kira.core.kobject import KObject, KTypeInfo
-from kira.kdata.kresult import KResult
+from kira.kdata.kcollection import KCollection
 
 import enum
 
@@ -57,7 +57,7 @@ class KNode(KObject):
         if len(result) == 1:
             return result[0]
 
-        return KData(f"result_{self.name}", KResult(result))
+        return KData(f"result_{self.name}", KCollection(result))
 
     @abstractmethod
     def call(self, inputs: list[KObject], context: KContext) -> list[KDataValue]:
