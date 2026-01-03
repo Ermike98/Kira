@@ -7,13 +7,13 @@ if TYPE_CHECKING:
     from kira.core.kcontext import KContext
 from kira.kdata.kdata import KData, KDataValue
 from kira.core.kobject import KObject, KTypeInfo
-from kira.core.kresult import KResult
+from kira.kdata.kresult import KResult
 
 import enum
 
 from kira.kexpections.kexception import KExceptionTypeInfo
 from kira.kexpections.knode_exception import KNodeException, KNodeExceptionType
-from kira.ktypeinfo.no_type import KNoTypeInfo
+from kira.ktypeinfo.any_type import KAnyTypeInfo
 
 
 class KNodeType(enum.Enum):
@@ -39,20 +39,25 @@ class KNode(KObject):
         super().__init__(name=name)
 
         self._input_names = [el if isinstance(el, str) else el[0] for el in inputs]
-        self._input_types: list[KTypeInfo] = [KNoTypeInfo() if isinstance(el, str) else el[1] for el in
+        self._input_types: list[KTypeInfo] = [KAnyTypeInfo() if isinstance(el, str) else el[1] for el in
                                               inputs]
 
         self._outputs_names = [el if isinstance(el, str) else el[0] for el in outputs]
-        self._outputs_types: list[KTypeInfo] = [KNoTypeInfo() if isinstance(el, str) else el[1] for el in
+        self._outputs_types: list[KTypeInfo] = [KAnyTypeInfo() if isinstance(el, str) else el[1] for el in
                                                 outputs]
 
     # @abstractmethod
     # def instantiate(self, inputs: dict[str, KData]) -> KResult[KData]:
     #     pass
 
-    def eval(self, context: KContext) -> KResult:
+    def eval(self, context: KContext) -> KData:
         inputs = {name: context.get_object(name) for name in self._input_names}
-        return KResult(f"result_{self.name}", self(inputs, context))
+
+        result = self(inputs, context)
+        if len(result) == 1:
+            return result[0]
+
+        return KData(f"result_{self.name}", KResult(result))
 
     @abstractmethod
     def call(self, inputs: list[KObject], context: KContext) -> list[KDataValue]:

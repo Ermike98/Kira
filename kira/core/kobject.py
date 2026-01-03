@@ -10,9 +10,7 @@ if TYPE_CHECKING:
 class KObjectType(enum.Enum):
     KDATA = 1
     KNODE = 2
-    KRESULT = 3
-    KEXCEPTION = 4
-
+    KEXCEPTION = 3
 
 class KTypeInfo(ABC):
     @abstractmethod

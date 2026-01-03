@@ -1,6 +1,5 @@
 from __future__ import annotations
 from kira.core.kobject import KObject
-from kira.core.kresult import KResult
 from kira.kexpections.kgenericexception import KGenericException
 
 
@@ -13,10 +12,10 @@ class KContext:
 
         self._objects[obj.name] = obj
 
-        if isinstance(obj, KResult):
-            for i in obj.results:
-                name = f"{obj.name}.{i.name}"
-                self._objects[name] = i
+        # if isinstance(obj, KResult):
+        #     for i in obj.results:
+        #         name = f"{obj.name}.{i.name}"
+        #         self._objects[name] = i
 
         return self
 
