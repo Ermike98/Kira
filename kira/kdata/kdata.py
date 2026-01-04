@@ -73,6 +73,9 @@ class KData(KObject):
         return self._value.type if self._value is not None else KExceptionTypeInfo()
 
     def __repr__(self):
+        if self.error is not None:
+            return f"KData({repr(self.name)}, value={repr(self.value)}, error={repr(self.error)})"
+
         return f"KData({repr(self.name)}, {self.value})"
 
     def __bool__(self) -> bool:

@@ -54,8 +54,8 @@ class KNode(KObject):
         inputs = {name: context.get_object(name) for name in self._input_names}
 
         result = self(inputs, context)
-        if len(result) == 1:
-            return result[0]
+        if len(self._outputs_names) == 1:
+            return KData(f"result_{self.name}", result[0].value, result[0].error)
 
         return KData(f"result_{self.name}", KCollection(result))
 

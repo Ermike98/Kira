@@ -53,7 +53,7 @@ class KNodeInstance(KObject):
 
         call_result = self._node(inputs, local_context)
 
-        if len(call_result) != 1:
+        if len(call_result) == 1:
             result = KData(self.name, call_result[0].value, call_result[0].error)
         else:
             result = KData(self.name, KCollection(call_result))
