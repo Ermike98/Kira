@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from kira import KData
+from kira.kdata.kdata import KData
 from kira.core.kcontext import KContext
 from kira.core.kobject import KObject, KTypeInfo
 from kira.kdata.kcollection import KCollection
