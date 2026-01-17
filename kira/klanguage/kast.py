@@ -38,6 +38,12 @@ class AstCall(AstExpression):
 
 
 @dataclass
+class AstArray(AstExpression):
+    elements: list[AstExpression]
+    token: KToken
+
+
+@dataclass
 class AstStatement(AstNode):
     pass
 
@@ -269,6 +275,9 @@ def _parse_primary(stream: KTokenStream) -> AstExpression:
         stream.expect(KTokenType.CLOSE_BRACKET, "Expected ')'")
         return _parse_trailers(stream, expr)
 
+    if stream.current and stream.current.token_type == KTokenType.OPEN_SQUARE_BRACKET:
+        return _parse_trailers(stream, _parse_array(stream))
+
     if stream.current.token_type == KTokenType.SYMBOL:
         sym_token = stream.advance()
         if stream.match(KTokenType.OPEN_BRACKET):
@@ -299,9 +308,35 @@ def _parse_primary(stream: KTokenStream) -> AstExpression:
     raise SyntaxError(f"Unexpected token {stream.current}")
 
 
+def _parse_array(stream: KTokenStream) -> AstArray:
+    bracket_token = stream.expect(KTokenType.OPEN_SQUARE_BRACKET, "Expected '['")
+    elements = _parse_array_elements(stream)
+    return AstArray(elements, bracket_token)
+
+
+def _parse_array_elements(stream: KTokenStream) -> list[AstExpression]:
+    elements = []
+    if stream.current and stream.current.token_type != KTokenType.CLOSE_SQUARE_BRACKET:
+        while True:
+            elements.append(_parse_expression(stream))
+            if not stream.match(KTokenType.COMMA):
+                break
+    stream.expect(KTokenType.CLOSE_SQUARE_BRACKET, "Expected ']'")
+    return elements
+
+
 def _parse_trailers(stream: KTokenStream, node: AstExpression) -> AstExpression:
-    while stream.match(KTokenType.DOT):
-        prop_token = stream.expect(KTokenType.SYMBOL, "Expected property name")
-        node = AstCall("getattr", [node, AstLiteral(prop_token.sym_str, prop_token)], prop_token)
+    while True:
+        if stream.match(KTokenType.DOT):
+            if isinstance(node, AstArray):
+                raise SyntaxError("Arrays do not have fields")
+            prop_token = stream.expect(KTokenType.SYMBOL, "Expected property name")
+            node = AstCall("getattr", [node, AstSymbol(prop_token.sym_str, prop_token)], prop_token)
+        elif stream.current and stream.current.token_type == KTokenType.OPEN_SQUARE_BRACKET:
+            bracket_token = stream.advance()
+            indices = _parse_array_elements(stream)
+            node = AstCall("getitem", [node] + indices, bracket_token)
+        else:
+            break
     return node
 
