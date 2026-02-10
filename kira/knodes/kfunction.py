@@ -35,23 +35,26 @@ def kfunction(
         use_values: bool = True
 ):
     def decorator(func: Callable):
-        # 1. Validate the function signature for variadic arguments
         sig = inspect.signature(func)
-        for param in sig.parameters.values():
-            if param.kind == inspect.Parameter.VAR_POSITIONAL or param.kind ==  inspect.Parameter.VAR_KEYWORD:
-                raise TypeError(
-                    f"KFunction '{name or func.__name__}' cannot use variadic arguments (*args, **kwargs)."
-                )
+        params = list(sig.parameters.values())
 
-        # 2. Check that the number of inputs matches the function signature
-        # This prevents runtime errors when unpacking
-        if len(inputs) != (len(sig.parameters) - use_context):
+        # 1. Validate: No **kwargs allowed
+        if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params):
+            raise TypeError(f"KFunction '{name or func.__name__}' cannot use **kwargs.")
+
+        # 2. Check input count vs signature
+        # We allow len(inputs) to be flexible if the function has *args
+        has_var_args = any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in params)
+        min_expected = len(params) - use_context - (1 if has_var_args else 0)
+
+        if not has_var_args and len(inputs) != min_expected:
             raise ValueError(
-                f"KFunction '{func.__name__}' expects {len(sig.parameters)} arguments, "
-                f"but {len(inputs)} inputs were defined in the decorator."
+                f"KFunction '{func.__name__}' expects {min_expected} arguments, "
+                f"but {len(inputs)} inputs were defined."
             )
+        elif has_var_args and len(inputs) < min_expected:
+            raise ValueError(f"KFunction '{func.__name__}' requires at least {min_expected} inputs.")
 
-        # 3. Create the wrapper to unpack the list into individual arguments
         @wraps(func)
         def wrapper(values: list[KData], context: KContext) -> list[KDataValue]:
             if use_values:
@@ -59,7 +62,6 @@ def kfunction(
 
             return func(*values, context=context) if use_context else func(*values)
 
-        # 4. Return the KFunction instance
         return KFunction(
             name=name or func.__name__,
             func=wrapper,
