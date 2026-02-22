@@ -7,7 +7,6 @@ if TYPE_CHECKING:
     from kira.core.kcontext import KContext
 from kira.kdata.kdata import KData, KDataValue
 from kira.core.kobject import KObject, KTypeInfo
-from kira.kdata.kcollection import KCollection
 
 import enum
 
@@ -46,18 +45,9 @@ class KNode(KObject):
         self._outputs_types: list[KTypeInfo] = [KAnyTypeInfo() if isinstance(el, str) else el[1] for el in
                                                 outputs]
 
-    # @abstractmethod
-    # def instantiate(self, inputs: dict[str, KData]) -> KResult[KData]:
-    #     pass
-
-    def eval(self, context: KContext) -> KData:
-        inputs = {name: context.get_object(name) for name in self._input_names}
-
-        result = self(inputs, context)
-        if len(self._outputs_names) == 1:
-            return KData(f"result_{self.name}", result[0].value, result[0].error)
-
-        return KData(f"result_{self.name}", KCollection(result))
+    def eval(self, context: KContext) -> KNode:
+        context.register_object(self)
+        return self
 
     @abstractmethod
     def call(self, inputs: list[KObject], context: KContext) -> list[KDataValue]:

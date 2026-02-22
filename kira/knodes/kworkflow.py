@@ -27,33 +27,11 @@ class KWorkflow(KNode):
         self._output_symbols = output_symbols
         self._nodes: list[KObject] = nodes if nodes is not None else []
 
-    # def _init_graph(self):
-    #     graph = {node: set() for node in self._nodes}
-    #     # node_input_map: KNodeInstance -> { input_name: context_key }
-    #     node_input_map  = {node: {} for node in self._nodes}
-    #     # workflow_output_map: output_name -> context_key
-    #     workflow_output_map  = {}
-    #
-    #     for edge in self._edges:
-    #         # Prepare the context key: "NodeName.KDataName" or just "KDataName" if from workflow input
-    #         context_key = edge.from_name if edge.from_node is None else f"{edge.from_node.name}.{edge.from_name}"
-    #
-    #         if edge.to_node is not None:
-    #             # Track dependency for TopologicalSorter
-    #             if edge.from_node is not None:
-    #                 graph[edge.to_node].add(edge.from_node)
-    #             # Map node input to its source in the context
-    #             node_input_map[edge.to_node][edge.to_name] = context_key
-    #         else:
-    #             # Map workflow-level output to its source in the context
-    #             workflow_output_map[edge.to_name] = context_key
-    #
-    #     return graph, node_input_map, workflow_output_map
-
     def call(self, inputs: list[KData], context: KContext) -> list[KDataValue]:
         ctx = KContext(context)
 
-        # 1. Register workflow inputs into context using their intrinsic names
+        # 1. Register workflow inputs into context using their local names
+        # todo fix: i think we have to register the data using the node input names instead of the actual names of the variables
         for data in inputs:
             ctx.register_object(data)
 

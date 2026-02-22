@@ -61,6 +61,3 @@ class KNodeInstance(KObject):
         context.register_object(result)
 
         return result
-
-    # def __call__(self, inputs: dict[str, KData]) -> KResult:
-    #     return KResult(self.name, self.node(inputs))
