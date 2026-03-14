@@ -113,7 +113,7 @@ class KTokenStream:
 
 # --- Parser (Returns AST) ---
 
-def kparse(tokens: list[KToken]) -> AstProgram:
+def kparse(tokens: list[KToken]) -> AstNode:
     stream = KTokenStream(tokens)
     statements = []
 
@@ -136,6 +136,9 @@ def kparse(tokens: list[KToken]) -> AstProgram:
             else:
                 expr = _parse_expression(stream)
                 statements.append(AstExpressionStmt(expr))
+
+    if len(statements) == 1:
+        return statements[0]
 
     return AstProgram(statements)
 
