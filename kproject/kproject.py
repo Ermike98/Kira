@@ -12,6 +12,7 @@ from kproject.kstate_manager import KStateManager
 from kproject.kevaluator import KEvaluator
 from kproject.kevent import KEventTypes
 from kira.core.kobject import KObject
+from library import load_libraries
 
 class KProject:
     """
@@ -23,6 +24,7 @@ class KProject:
         
         # Initialize Core Managers
         self.context = KContext()
+        load_libraries(self.context)
         self.state_manager = KStateManager()
         self.evaluator = KEvaluator(self.context, self.state_manager)
         
@@ -45,6 +47,7 @@ class KProject:
         # Reset State
         self.evaluator.stop()
         self.context = KContext()
+        load_libraries(self.context)
         self.state_manager = KStateManager()
         self.evaluator = KEvaluator(self.context, self.state_manager)
         
@@ -64,7 +67,7 @@ class KProject:
         if event.type == KEventTypes.AddData:
             data = self.persistence_manager.get_data(event.target)
             if data:
-                self.context.register_object(event.target, data)
+                self.context.register_object(data)
         
         # 3. Evaluation
         self.evaluator.process_event(event)

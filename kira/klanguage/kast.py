@@ -168,6 +168,9 @@ def _parse_workflow(stream: KTokenStream) -> AstWorkflow:
 
     body = []
     while stream.current is not None:
+        if stream.match(KTokenType.END_LINE):
+            continue
+
         if stream.match(KTokenType.RETURN):
             ret_symbols = []
             while True:
@@ -175,8 +178,11 @@ def _parse_workflow(stream: KTokenStream) -> AstWorkflow:
                 ret_symbols.append(s.sym_str)
                 if not stream.match(KTokenType.COMMA):
                     break
-            if stream.current and stream.current.token_type == KTokenType.SEMICOLON:
-                stream.advance()
+            
+            # Skip optional semicolons or newlines after return
+            while stream.match(KTokenType.SEMICOLON) or stream.match(KTokenType.END_LINE):
+                pass
+                
             return AstWorkflow(workflow_name, inputs, outputs, ret_symbols, body, name_token)
 
         target_token = stream.expect(KTokenType.SYMBOL, "Expected variable name")

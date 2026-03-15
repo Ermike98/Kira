@@ -58,12 +58,14 @@ class KStateManager(KManager):
         code = event.body
         tokens = [t for t in ktokenize(code) if t.token_type.name != "WHITESPACE"]
         ast = kparse(tokens)
-        assert isinstance(ast, AstAssignment), "AddVariable: Expected AstAssignment"
+        assert isinstance(ast, AstAssignment), f"AddVariable: Expected AstAssignment, got {type(ast)}"
         
         deps = find_dependencies(ast)
         kobj = kbuild_assignment(ast)
 
-        assert isinstance(kobj, KNodeInstance), "AddVariable: Expected KNodeInstance"
+        # TODO: Fix this assertion, assignment might return a KData object or a KNodeInstance
+        # assert isinstance(kobj, KNodeInstance), f"AddVariable: Expected KNodeInstance, got {type(kobj)}"
+        assert isinstance(kobj, KNodeInstance) or isinstance(kobj, KData), f"AddVariable: Expected KNodeInstance or KData, got {type(kobj)}"
         
         self.variables[event.target] = VariableState(
             code=code,
@@ -77,12 +79,12 @@ class KStateManager(KManager):
         code = event.body
         tokens = [t for t in ktokenize(code) if t.token_type.name != "WHITESPACE"]
         ast = kparse(tokens)
-        assert isinstance(ast, AstWorkflow), "AddWorkflow: Expected AstWorkflow"
+        assert isinstance(ast, AstWorkflow), f"AddWorkflow: Expected AstWorkflow, got {type(ast)}"
         
         deps = find_dependencies(ast)
         kobj = kbuild_workflow(ast)
 
-        assert isinstance(kobj, KNode), "AddVariable: Expected KNode"
+        assert isinstance(kobj, KNode), f"AddWorkflow: Expected KNode, got {type(kobj)}"
         
         self.workflows[event.target] = WorkflowState(
             code=code,
@@ -97,12 +99,12 @@ class KStateManager(KManager):
         code = event.body
         tokens = [t for t in ktokenize(code) if t.token_type.name != "WHITESPACE"]
         ast = kparse(tokens)
-        assert isinstance(ast, AstWorkflow), "UpdateWorkflow: Expected AstWorkflow"
+        assert isinstance(ast, AstWorkflow), f"UpdateWorkflow: Expected AstWorkflow, got {type(ast)}"
         
         deps = find_dependencies(ast)
         kobj = kbuild_workflow(ast)
 
-        assert isinstance(kobj, KNode), "UpdateWorkflow: Expected KNode"
+        assert isinstance(kobj, KNode), f"UpdateWorkflow: Expected KNode, got {type(kobj)}"
         
         self.workflows[event.target] = WorkflowState(
             code=code,

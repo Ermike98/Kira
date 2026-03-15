@@ -1,4 +1,7 @@
 from kira.core.kobject import KObject, KTypeInfo
+from kira.core.kcontext import KContext
+from kira.core.ksymbol import KSymbol
+from kira.core.kprogram import KProgram
 
 from kira.knodes.knode import KNode, KNodeType, KNodeTypeInfo
 from kira.knodes.kfunction import KFunction

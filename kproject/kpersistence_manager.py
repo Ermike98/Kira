@@ -53,7 +53,7 @@ class KPersistenceManager(KManager):
 
     def get_all_events(self) -> List[KEvent]:
         """Returns all events currently loaded in memory."""
-        return self.__events
+        return self.__events.copy()
 
     def process_event(self, event: KEvent):
         """Standard KManager interface. Appends to event logs."""
@@ -177,6 +177,12 @@ class KPersistenceManager(KManager):
             return
             
         cursor = self.__conn.cursor()
+        for event in self.__unsaved_events:
+            cursor.execute('''
+                INSERT INTO events (timestamp, author, event_type, target, body)
+                VALUES (?, ?, ?, ?, ?)
+            ''', 
+            (
                 event.timestamp.isoformat(),
                 event.author,
                 event.type.value,
