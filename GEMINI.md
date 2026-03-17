@@ -137,3 +137,33 @@ Adapts to the underlying `KData` type:
 #### **3. Sidebar & Project Explorer**
 `gui/components/sidebar.py`
 A reactive bridge to the project's symbol table, providing a tree-based navigation of variables, data, and workflows.
+
+---
+
+## 7. Kira DSL (klanguage) Architecture
+
+The Kira Domain Specific Language (DSL) is a custom scriptable layer that allows users to define variables, transformations, and workflows. It is designed to be reactive, readable, and easily extensible.
+
+### **A. Tokenization (ktokenizer.py)**
+The `ktokenizer` converts raw string expressions into a linear stream of `KToken` objects.
+- **Support**: Identifies literals (numbers, strings), symbols (variable names), operators (`+`, `-`, `*`, `/`, `^`, `==`, `!=`, etc.), and brackets.
+- **Pipe Operator (`|>`)**: Specialized support for function chaining.
+- **Keywords**: Reserved words like `workflow` and `return`.
+
+### **B. Abstract Syntax Tree (kast.py)**
+The language uses a **Recursive Descent Parser** to build a hierarchical AST from the token stream.
+- **Precedence Hierarchy**: Strictly defined operator precedence (Arithmetic > Comparison > Logic > Pipe > Assignment).
+- **Desugaring Pattern**: Complex operators are often transformed (desugared) into simpler forms during parsing.
+    - **Pipe Desugaring**: `f(a, b) |> g(c)` is transformed into `g(f(a, b), c)` at the AST level, ensuring the rest of the engine only sees standard function calls.
+- **Nodes**: Defines structure for `AstCall`, `AstSymbol`, `AstLiteral`, `AstAssignment`, and `AstWorkflow`.
+
+### **C. Program Builder (kbuilder.py)**
+The Builder bridges the gap between the static AST and the runtime `KObject` model.
+- **Translation**: Converts AST nodes into executable `KNodeInstance` objects or static `KData` objects.
+- **Workflow Registration**: Transforms `AstWorkflow` definitions into `KWorkflow` objects capable of being executed or nested.
+- **Symbol Linking**: Resolves variable names into `KSymbol` references that the `KEvaluator` can track in the dependency graph.
+
+### **D. Language Features**
+- **Implicit Identity**: Simple symbol assignments (e.g., `y = x`) are wrapped in "identity nodes" to maintain reactive consistency.
+- **Dynamic Property Access**: Supports dot-notation (e.g., `df.column`) which is translated to `getattr` calls in the core.
+- **Functional Shorthand**: Symbols can be treated as functions in the right-hand side of a pipe (e.g., `x |> f` becomes `f(x)`).
