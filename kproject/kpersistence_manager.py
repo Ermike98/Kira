@@ -14,6 +14,7 @@ class DataCorruptionError(Exception):
     """Raised when data loaded from the database is corrupted or in an invalid format."""
     pass
 
+# TODO: Check if table design is correct
 class KPersistenceManager(KManager):
     """
     Handles event sourcing logs and heavy KData isolation.
@@ -119,6 +120,9 @@ class KPersistenceManager(KManager):
     def _init_db(self):
         """Initializes the SQLite schema."""
         cursor = self.__conn.cursor()
+
+        # Enable WAL mode for better concurrent read performance
+        cursor.execute("PRAGMA journal_mode=WAL")
         
         # Events table
         cursor.execute('''
@@ -229,7 +233,7 @@ class KPersistenceManager(KManager):
         # TODO Refactor: if data is not available return KData(None, KErrorMissingData))
 
         cursor = self.__conn.cursor()
-        cursor.execute('SELECT name, data_type, string_value, blob_id FROM kdata_storage WHERE name=?', (name,))
+        cursor.execute('SELECT name, data_type, string_value, content FROM kdata_storage WHERE name=?', (name,))
         row = cursor.fetchone()
 
         assert row, f"_load_data_from_disk: No data available for name: {name}"

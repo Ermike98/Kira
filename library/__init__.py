@@ -9,4 +9,6 @@ default_libraries = [
 
 def load_libraries(ctx: KContext):
     for lib in default_libraries:
-        ctx.register_object(lib)
+        lib.eval(ctx)
+
+    ctx.debug_print()

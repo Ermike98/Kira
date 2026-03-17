@@ -118,6 +118,10 @@ class KProject:
     def get_value(self, name: str) -> KObject:
         return self.context.get_object(name)
 
+    def get_data_names(self) -> List[str]:
+        """Returns the list of all registered data names."""
+        return sorted(self.state_manager.data_names)
+
     # Undo/Redo/Restore logic
     def undo(self):
         """Moves back one event in history."""

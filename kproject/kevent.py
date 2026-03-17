@@ -1,10 +1,10 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import StrEnum
+from enum import Enum
 import hashlib
 
 
-class KEventTypes(StrEnum):
+class KEventTypes(str, Enum):
     AddVariable = "AddVariable"
     AddData = "AddData"
     AddWorkflow = "AddWorkflow"
