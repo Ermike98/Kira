@@ -39,6 +39,8 @@ class KTokenType(enum.Enum):
     WORKFLOW = "workflow"
     RETURN = "return"
 
+    PIPE = "|>"
+
     STRING = "'\""
     NUMBER = "0123456789.eE-+"
 
@@ -138,6 +140,12 @@ def ktokenize(expression: str):
             tokens.append(KToken(char, KTokenType.DIVIDE))
         elif char in KTokenType.EXPONENT.value:
             tokens.append(KToken(char, KTokenType.EXPONENT))
+        elif char == "|":
+            if stop_idx + 1 < len(expression) and expression[stop_idx + 1] == ">":
+                tokens.append(KToken(char + expression[stop_idx + 1], KTokenType.PIPE))
+                stop_idx += 1
+            else:
+                raise SyntaxError(f"Unexpected character '|' at {stop_idx}")
         elif char in KTokenType.STRING.value:
             quote_char = char
             stop_idx += 1

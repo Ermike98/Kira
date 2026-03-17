@@ -193,7 +193,25 @@ def _parse_workflow(stream: KTokenStream) -> AstWorkflow:
 
 
 def _parse_expression(stream: KTokenStream) -> AstExpression:
-    return _parse_logic_or(stream)
+    return _parse_pipe(stream)
+
+
+def _parse_pipe(stream: KTokenStream) -> AstExpression:
+    left = _parse_logic_or(stream)
+    while stream.current and stream.current.token_type == KTokenType.PIPE:
+        op_token = stream.advance()
+        # Right side should be OR-layer or higher, but we specifically want a call or symbol
+        right = _parse_logic_or(stream)
+        
+        if isinstance(right, AstCall):
+            # Prepend left as the first argument
+            left = AstCall(right.func_name, [left] + right.args, right.token)
+        elif isinstance(right, AstSymbol):
+            # Turn symbol into a call with left as only argument
+            left = AstCall(right.name, [left], right.token)
+        else:
+            raise SyntaxError(f"Right side of pipe |> must be a function call or symbol, got {type(right).__name__}")
+    return left
 
 
 def _parse_logic_or(stream: KTokenStream) -> AstExpression:
