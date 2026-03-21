@@ -3,12 +3,13 @@ from __future__ import annotations
 from typing import Optional
 
 from kira import KData, KLiteral
+from kira.core.kformula import KFormula
 from kira.core.kobject import KObject
 from kira.core.kprogram import KProgram
 from kira.core.ksymbol import KSymbol
 from kira.klanguage.kast import (
     AstProgram, AstAssignment, AstExpressionStmt, AstWorkflow,
-    AstExpression, AstLiteral, AstSymbol, AstCall
+    AstExpression, AstLiteral, AstSymbol, AstCall, AstFormula
 )
 from kira.klanguage.utils import token_hash_name
 from kira.knodes.knode_instance import KNodeInstance
@@ -46,6 +47,11 @@ def kbuild_expression(expr: AstExpression, target_name: Optional[str]) -> KObjec
 
         inst_name = target_name if target_name is not None else token_hash_name(expr.token, "call")
         return KNodeInstance(inst_name, expr.func_name, built_args)
+
+    if isinstance(expr, AstFormula):
+        inner_obj = kbuild_expression(expr.expression, None)
+        inst_name = target_name if target_name is not None else token_hash_name(expr.token, "formula")
+        return KFormula(inner_obj, inst_name)
 
     raise ValueError(f"Unknown AST expression type: {type(expr)}")
 

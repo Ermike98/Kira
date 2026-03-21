@@ -41,6 +41,8 @@ class KTokenType(enum.Enum):
 
     PIPE = "|>"
 
+    DOLLAR = "$"
+
     STRING = "'\""
     NUMBER = "0123456789.eE-+"
 
@@ -126,6 +128,8 @@ def ktokenize(expression: str):
             tokens.append(KToken(char, KTokenType.OPEN_SQUARE_BRACKET))
         elif char in KTokenType.CLOSE_SQUARE_BRACKET.value:
             tokens.append(KToken(char, KTokenType.CLOSE_SQUARE_BRACKET))
+        elif char in KTokenType.DOLLAR.value:
+            tokens.append(KToken(char, KTokenType.DOLLAR))
         elif char in KTokenType.PLUS.value:
             tokens.append(KToken(char, KTokenType.PLUS))
         elif char in KTokenType.MINUS.value:

@@ -3,7 +3,10 @@ from __future__ import annotations
 from kira.kdata.kdata import KData
 from kira.core.kcontext import KContext
 from kira.core.kobject import KObject, KTypeInfo
+from kira.core.kformula import KFormula
 from kira.kdata.kcollection import KCollection
+from kira.kdata.ktable import KTable
+from kira.kdata.karray import KArray
 from kira.knodes.knode import KNode
 
 
@@ -38,6 +41,7 @@ class KNodeInstance(KObject):
 
     def eval(self, context: KContext) -> KData:
         local_context = KContext(context)
+        formulas_context = KContext(context)
 
         # Resolve node if not already resolved
         if self._node is None:
@@ -48,8 +52,22 @@ class KNodeInstance(KObject):
             assert len(self._node_inputs) == len(self._node.input_names), \
                 f"Input count mismatch for '{self._target_name}'. Expected {len(self._node.input_names)}, got {len(self._node_inputs)}"
 
-        inputs = {node_name: node_input.eval(local_context)
-                  for node_name, node_input in zip(self._node.input_names, self._node_inputs)}
+        inputs = {}
+
+        for node_name, node_input in zip(self._node.input_names, self._node_inputs):
+            if isinstance(node_input, KFormula):
+                res = node_input.eval(formulas_context)
+            else:
+                res = node_input.eval(local_context)
+                
+                # Auto-unpack strategy: inject DataFrame columns into formulas_context
+                if isinstance(res.value, KTable):
+                    df = res.value.value
+                    for col in df.columns:
+                        formulas_context.register_object(KData(col, KArray(df[col].to_numpy())))
+
+            inputs[node_name] = KData(node_name, res.value, res.error)
+
 
         call_result = self._node(inputs, local_context)
 

@@ -1,7 +1,7 @@
 from typing import Set
 from kira.klanguage.kast import (
     AstNode, AstLiteral, AstSymbol, AstCall, AstArray, 
-    AstAssignment, AstExpressionStmt, AstWorkflow, AstProgram
+    AstAssignment, AstExpressionStmt, AstWorkflow, AstProgram, AstFormula
 )
 
 def find_dependencies(node: AstNode) -> Set[str]:
@@ -23,7 +23,11 @@ def find_dependencies(node: AstNode) -> Set[str]:
     elif isinstance(node, AstArray):
         for elem in node.elements:
             dependencies.update(find_dependencies(elem))
-            
+    
+    elif isinstance(node, AstFormula):
+        # Formulas encapsulate their dependencies for local evaluation
+        dependencies.update(find_dependencies(node.expression))
+
     elif isinstance(node, AstAssignment):
         dependencies.update(find_dependencies(node.expression))
         

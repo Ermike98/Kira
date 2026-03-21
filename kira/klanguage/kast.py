@@ -44,6 +44,12 @@ class AstArray(AstExpression):
 
 
 @dataclass
+class AstFormula(AstExpression):
+    expression: AstExpression
+    token: KToken
+
+
+@dataclass
 class AstStatement(AstNode):
     pass
 
@@ -301,6 +307,13 @@ def _parse_primary(stream: KTokenStream) -> AstExpression:
         expr = _parse_expression(stream)
         stream.expect(KTokenType.CLOSE_BRACKET, "Expected ')'")
         return _parse_trailers(stream, expr)
+
+    if stream.current and stream.current.token_type == KTokenType.DOLLAR:
+        dollar_token = stream.advance()
+        expr = _parse_expression(stream)
+        stream.expect(KTokenType.DOLLAR, "Expected closing '$' for formula")
+        return _parse_trailers(stream, AstFormula(expr, dollar_token))
+
 
     if stream.current and stream.current.token_type == KTokenType.OPEN_SQUARE_BRACKET:
         return _parse_trailers(stream, _parse_array(stream))
