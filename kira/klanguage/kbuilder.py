@@ -2,18 +2,20 @@ from __future__ import annotations
 
 from typing import Optional
 
-from kira import KData, KLiteral
+import numpy as np
+from kira import KData, KLiteral, KArray, KFunction
 from kira.core.kformula import KFormula
 from kira.core.kobject import KObject
 from kira.core.kprogram import KProgram
 from kira.core.ksymbol import KSymbol
 from kira.klanguage.kast import (
     AstProgram, AstAssignment, AstExpressionStmt, AstWorkflow,
-    AstExpression, AstLiteral, AstSymbol, AstCall, AstFormula
+    AstExpression, AstLiteral, AstSymbol, AstCall, AstFormula, AstArray
 )
 from kira.klanguage.utils import token_hash_name
 from kira.knodes.knode_instance import KNodeInstance
 from kira.knodes.kworkflow import KWorkflow
+from kira.ktypeinfo.any_type import KAnyTypeInfo
 
 
 def kbuild_program(ast: AstProgram) -> KProgram:
@@ -53,7 +55,44 @@ def kbuild_expression(expr: AstExpression, target_name: Optional[str]) -> KObjec
         inst_name = target_name if target_name is not None else token_hash_name(expr.token, "formula")
         return KFormula(inner_obj, inst_name)
 
+    if isinstance(expr, AstArray):
+        built_elements = [kbuild_expression(el, None) for el in expr.elements]
+        
+        # Check if all elements are constant (KData)
+        is_constant = all(isinstance(el, KData) for el in built_elements)
+        
+        inst_name = target_name if target_name is not None else token_hash_name(expr.token, "array")
+        
+        if is_constant:
+            # All elements are literals, we can collapse into a single KData
+            values = [el.value.value for el in built_elements]
+            return KData(inst_name, KArray(np.array(values, dtype=object)))
+        else:
+            # Reactive array: create a specialized node for this arity
+            node = _create_array_node(len(built_elements))
+            return KNodeInstance(inst_name, node, built_elements)
+
     raise ValueError(f"Unknown AST expression type: {type(expr)}")
+
+
+def _create_array_node(num_elements: int) -> KFunction:
+    """Creates a fixed-arity KFunction that packs its inputs into a KArray."""
+    
+    def array_func(*args):
+        # Extract values from KDataValue instead of storing the wrapper in the array, e.g. array([KLiteral(1), KLiteral(2)]) -> array([1, 2])
+        return [KArray(np.array(list(map(lambda x: x.value, args)), dtype=object))]
+
+    inputs = [(f"x{i}", KAnyTypeInfo()) for i in range(num_elements)]
+    outputs = [("y", KAnyTypeInfo())]
+    
+    return KFunction(
+        name=f"array_{num_elements}",
+        func=lambda vals: array_func(*[v.value for v in vals]), # Manual unboxing
+        inputs=inputs,
+        outputs=outputs,
+        use_values=True,
+        use_context=False
+    )
 
 
 def kbuild_assignment(stmt: AstAssignment) -> KObject:
