@@ -1,5 +1,6 @@
 import datetime
 import enum
+import numpy as np
 
 from kira.kdata.kdata import KDataValue, KData
 from kira.core.kobject import KTypeInfo, KObject
@@ -21,7 +22,7 @@ class KLiteralTypeInfo(KTypeInfo):
 
     def match(self, value: KObject) -> bool:
         return (isinstance(value, KData) and
-                value and
+                bool(value) and
                 isinstance(value.value, KLiteral) and
                 ((self._lit_type == KLiteralType.ANY) or (self._lit_type == value.value.lit_type))
                 )
@@ -41,50 +42,52 @@ K_DATETIME_TYPE = KLiteralTypeInfo(KLiteralType.DATETIME)
 
 class KLiteral(KDataValue):
     def __init__(self, value, lit_type: KLiteralType = None):
-        if lit_type is not None and not self.validate_type(value, lit_type):
-            raise ValueError(
-                f"Invalid value type: {lit_type} for KLiteral: {repr(value)}, suggested type: {self.infer_type(value)}")
+        inferred_type = self.infer_type(value)
 
-        self._value = value
-        self._type = lit_type if lit_type is not None else self.infer_type(value)
+        if ((lit_type is not None) and
+            (lit_type != KLiteralType.ANY) and
+            (lit_type != inferred_type)
+            ):
+            raise ValueError(
+                f"Invalid value type: {lit_type} for KLiteral: {repr(value)}, suggested type: {inferred_type}")
+
+        self._type = lit_type if lit_type is not None else inferred_type
+
+        # Convert to numpy types to standardize
+        if inferred_type == KLiteralType.BOOLEAN:
+            self._value = np.bool_(value)
+        elif inferred_type == KLiteralType.INTEGER:
+            self._value = np.int64(value)
+        elif inferred_type == KLiteralType.NUMBER:
+            self._value = np.float64(value)
+        elif inferred_type == KLiteralType.STRING:
+            self._value = np.str_(value)
+        elif inferred_type == KLiteralType.DATETIME:
+            self._value = value if isinstance(value, np.datetime64) else np.datetime64(value)
+        elif inferred_type == KLiteralType.DATE:
+            self._value = value if isinstance(value, np.datetime64) else np.datetime64(value, 'D')
+        else:
+            self._value = value
 
     @staticmethod
     def infer_type(value) -> KLiteralType:
-        match value:
-            case int():
-                return KLiteralType.INTEGER
-            case float():
-                return KLiteralType.NUMBER
-            case str():
-                return KLiteralType.STRING
-            case bool():
-                return KLiteralType.BOOLEAN
-            case datetime.date():
+        if isinstance(value, (bool, np.bool_)):
+            return KLiteralType.BOOLEAN
+        if isinstance(value, (int, np.integer)):
+            return KLiteralType.INTEGER
+        if isinstance(value, (float, np.floating)):
+            return KLiteralType.NUMBER
+        if isinstance(value, (str, np.str_)):
+            return KLiteralType.STRING
+        if isinstance(value, datetime.datetime):
+            return KLiteralType.DATETIME
+        if isinstance(value, datetime.date):
+            return KLiteralType.DATE
+        if isinstance(value, np.datetime64):
+            if np.datetime_data(value)[0] == 'D':
                 return KLiteralType.DATE
-            case datetime.datetime():
-                return KLiteralType.DATETIME
-            case _:
-                return KLiteralType.ANY
-
-    @staticmethod
-    def validate_type(value, lit_type: KLiteralType):
-        match value, lit_type:
-            case int(), KLiteralType.INTEGER:
-                return True
-            case float(), KLiteralType.NUMBER:
-                return True
-            case str(), KLiteralType.STRING:
-                return True
-            case bool(), KLiteralType.BOOLEAN:
-                return True
-            case datetime.date(), KLiteralType.DATE:
-                return True
-            case datetime.datetime(), KLiteralType.DATETIME:
-                return True
-            case _, KLiteralType.ANY:
-                return True
-
-        return False
+            return KLiteralType.DATETIME
+        return KLiteralType.ANY
 
     @property
     def value(self):
