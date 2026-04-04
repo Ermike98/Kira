@@ -4,6 +4,7 @@ from typing import Optional
 
 import numpy as np
 from kira import KData, KLiteral, KArray, KFunction
+from kira.knodes.kfunction import kfunction
 from kira.core.kformula import KFormula
 from kira.core.kobject import KObject
 from kira.core.kprogram import KProgram
@@ -76,23 +77,22 @@ def kbuild_expression(expr: AstExpression, target_name: Optional[str]) -> KObjec
 
 
 def _create_array_node(num_elements: int) -> KFunction:
-    """Creates a fixed-arity KFunction that packs its inputs into a KArray."""
-    
-    def array_func(*args):
-        # Extract values from KDataValue instead of storing the wrapper in the array, e.g. array([KLiteral(1), KLiteral(2)]) -> array([1, 2])
-        return [KArray(np.array(list(map(lambda x: x.value, args)), dtype=object))]
-
     inputs = [(f"x{i}", KAnyTypeInfo()) for i in range(num_elements)]
     outputs = [("y", KAnyTypeInfo())]
-    
-    return KFunction(
-        name=f"array_{num_elements}",
-        func=lambda vals: array_func(*[v.value for v in vals]), # Manual unboxing
+
+    @kfunction(
         inputs=inputs,
         outputs=outputs,
+        name=f"array_{num_elements}",
         use_values=True,
         use_context=False
     )
+    def wrapper(*args):
+        # Extract raw values from KDataValue objects
+        raw_values = [v.value for v in args]
+        return [KArray(raw_values)]
+
+    return wrapper
 
 
 def kbuild_assignment(stmt: AstAssignment) -> KObject:

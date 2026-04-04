@@ -2,14 +2,17 @@ from functools import wraps
 from typing import Callable
 
 import numpy as np
+import pandas as pd
+import pandas.api.types as ptypes
 
 from kira.core.kcontext import KContext
 from kira.core.kobject import KTypeInfo
 from kira.kdata.karray import K_ARRAY_INTEGER_TYPE, K_ARRAY_NUMBER_TYPE, K_ARRAY_BOOLEAN_TYPE, K_ARRAY_STRING_TYPE, \
-    KArray
+    KArray, KArrayTypeInfo, K_ARRAY_TYPE
 from kira.kdata.kdata import KData, KDataValue
-from kira.kdata.kliteral import K_BOOLEAN_TYPE, K_INTEGER_TYPE, K_NUMBER_TYPE, K_STRING_TYPE, KLiteral, K_LITERAL_TYPE
+from kira.kdata.kliteral import K_BOOLEAN_TYPE, K_INTEGER_TYPE, K_NUMBER_TYPE, K_STRING_TYPE, KLiteral, KLiteralType
 from kira.kdata.kerrorvalue import KErrorValue
+from kira.kdata.ktable import KTable, KTableTypeInfo
 from kira.kexpections.kgenericexception import KGenericException
 from kira.knodes.kfunction import KFunction, kfunction
 from kira.ktypeinfo.any_type import KAnyTypeInfo
@@ -39,7 +42,7 @@ from kira.library.library_utils import numpy_to_kfunction, k_compare_wrapper
 
 # Arithmetic Functions
 
-# Arithmetic Functions
+# Addition 
 
 @kfunction(
     inputs=[("x1", K_ADD_TYPE), ("x2", K_ADD_TYPE)],
@@ -52,17 +55,22 @@ def k_add(val1_obj, val2_obj):
     val1 = val1_obj.value
     val2 = val2_obj.value
     # Logic
-    is_val1_str = isinstance(val1, (str, bytes)) or (isinstance(val1, np.ndarray) and val1.dtype.kind in 'SU')
-    is_val2_str = isinstance(val2, (str, bytes)) or (isinstance(val2, np.ndarray) and val2.dtype.kind in 'SU')
+    is_val1_str = isinstance(val1, (str, bytes, np.str_)) or (isinstance(val1, pd.Series) and ptypes.is_string_dtype(val1.dtype))
+    is_val2_str = isinstance(val2, (str, bytes, np.str_)) or (isinstance(val2, pd.Series) and ptypes.is_string_dtype(val2.dtype))
 
     if is_val1_str and is_val2_str:
+        if not isinstance(val1, pd.Series) and not isinstance(val2, pd.Series):
+            return [KLiteral(np.char.add(val1, val2)[()], KLiteralType.STRING)]
         result = np.char.add(val1, val2)
         return [KArray(result)]
     elif not is_val1_str and not is_val2_str:
         # Both numeric (or boolean)
         result = np.add(val1, val2)
-        if isinstance(result, np.ndarray):
+        if isinstance(result, (pd.Series, list)) or (isinstance(result, np.ndarray) and result.ndim > 0):
             return [KArray(result)]
+        
+        if isinstance(result, np.ndarray) and result.ndim == 0:
+            result = result[()]
         return [KLiteral(result)]
     else:
         # Mixed numeric and string
@@ -92,8 +100,8 @@ k_builtin_library.register(numpy_to_kfunction(
 def k_multiply(val1_obj, val2_obj):
     val1 = val1_obj.value
     val2 = val2_obj.value
-    is_val1_str = isinstance(val1, (str, bytes)) or (isinstance(val1, np.ndarray) and val1.dtype.kind in 'SU')
-    is_val2_str = isinstance(val2, (str, bytes)) or (isinstance(val2, np.ndarray) and val2.dtype.kind in 'SU')
+    is_val1_str = isinstance(val1, (str, bytes, np.str_)) or (isinstance(val1, pd.Series) and ptypes.is_string_dtype(val1.dtype))
+    is_val2_str = isinstance(val2, (str, bytes, np.str_)) or (isinstance(val2, pd.Series) and ptypes.is_string_dtype(val2.dtype))
 
     if is_val1_str and is_val2_str:
         return [KErrorValue(KGenericException("Type mismatch: cannot multiply string by string"))]
@@ -103,23 +111,26 @@ def k_multiply(val1_obj, val2_obj):
         string_val = val1 if is_val1_str else val2
         int_val = val2 if is_val1_str else val1
 
-        # Check if int_val is indeed integer
-        if isinstance(int_val, (int, np.integer)):
-            result = np.char.multiply(string_val, int_val)
-            if isinstance(result, np.ndarray):
-                return [KArray(result)]
-            return [KLiteral(result)]
-        elif isinstance(int_val, np.ndarray) and np.issubdtype(int_val.dtype, np.integer):
-            result = np.char.multiply(string_val, int_val)
-            return [KArray(result)]
-        else:
-            return [
-                KErrorValue(KGenericException(f"Type mismatch: cannot multiply string by {type(int_val).__name__}"))]
+        # Check for scalar multiplication
+        if not isinstance(string_val, pd.Series) and not isinstance(int_val, pd.Series):
+            if isinstance(int_val, (int, np.integer)):
+                result = np.char.multiply(string_val, int_val)[()]
+                return [KLiteral(result)]
+            else:
+                return [
+                    KErrorValue(KGenericException(f"Type mismatch: cannot multiply string by {type(int_val).__name__}"))]
+        
+        # Vectorized multiplication
+        result = np.char.multiply(string_val, int_val)
+        return [KArray(result)]
 
     # Both numeric
     result = np.multiply(val1, val2)
-    if isinstance(result, np.ndarray):
+    if isinstance(result, (pd.Series, list)) or (isinstance(result, np.ndarray) and result.ndim > 0):
         return [KArray(result)]
+    
+    if isinstance(result, np.ndarray) and result.ndim == 0:
+        result = result[()]
     return [KLiteral(result)]
 
 
@@ -224,3 +235,41 @@ k_builtin_library.register(numpy_to_kfunction(
     [("y", KAnyTypeInfo())],
     name="or"
 ))
+
+# Get Item
+
+@kfunction(
+    inputs=[("x", KUnionTypeInfo([K_ARRAY_TYPE, KTableTypeInfo()])), ("indices", K_ARRAY_TYPE)],
+    outputs=[("y", KAnyTypeInfo())],
+    name="getitem",
+    use_values=True
+)
+def k_getitem(x_obj, indices_obj):
+    x = x_obj.value
+    is_x_array = isinstance(x, pd.Series)
+
+    indices = indices_obj.value
+    n_indices = indices.size
+
+    if is_x_array and n_indices == 1:
+        # Filter array
+        result = x[indices[0]]
+        return [KArray(result)]
+    elif not is_x_array and n_indices == 2:
+        # Select rows and columns
+        result = x.iloc[indices[0], indices[1]]
+
+        if isinstance(result, pd.Series):
+            return [KArray(result.values)]
+        
+        return [KTable(result)]
+    elif not is_x_array and n_indices == 1:
+        # Select rows
+        result = x.iloc[indices[0]]
+        return [KTable(result)]
+    else:
+        return [KErrorValue(
+            KGenericException(f"Invalid arguments for getitem: {x_obj.type_info}, {n_indices} indices provided"))]
+
+
+k_builtin_library.register(k_getitem)
