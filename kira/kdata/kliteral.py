@@ -31,7 +31,6 @@ class KLiteralTypeInfo(KTypeInfo):
         return f"KLiteralTypeInfo({self._lit_type.name})"
 
 
-K_LITERAL_TYPE = KLiteralTypeInfo(KLiteralType.ANY)
 K_INTEGER_TYPE = KLiteralTypeInfo(KLiteralType.INTEGER)
 K_NUMBER_TYPE = KLiteralTypeInfo(KLiteralType.NUMBER)
 K_STRING_TYPE = KLiteralTypeInfo(KLiteralType.STRING)
@@ -45,7 +44,6 @@ class KLiteral(KDataValue):
         inferred_type = self.infer_type(value)
 
         if ((lit_type is not None) and
-            (lit_type != KLiteralType.ANY) and
             (lit_type != inferred_type)
             ):
             raise ValueError(
@@ -87,7 +85,8 @@ class KLiteral(KDataValue):
             if np.datetime_data(value)[0] == 'D':
                 return KLiteralType.DATE
             return KLiteralType.DATETIME
-        return KLiteralType.ANY
+            
+        raise ValueError(f"Invalid value type: {type(value)} for KLiteral")
 
     @property
     def value(self):
