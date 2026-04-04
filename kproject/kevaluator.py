@@ -2,6 +2,8 @@ from __future__ import annotations
 from enum import Enum
 import threading
 import time
+import logging
+from klogging.klogging import log_kobject
 from typing import Dict, Any, List, Set, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -36,19 +38,23 @@ class KEvaluator(KManager):
         self._worker_thread = threading.Thread(target=self._worker_loop, daemon=True, name="KEvaluatorWorker")
         self._worker_thread.start()
 
+        self._logger = logging.getLogger("kira.kevaluator")
+
     def process_event(self, event: KEvent):
         """
         Handles an incoming event by identifying dependent variables, 
         updating their status to WAITING, and adding them to the evaluation queue.
         """
-        # Identify dependent variables
-        # We need to find all variables that depend on event.target
-        affected = self._get_all_dependents(event.target)
         
-        # event.target itself might be a variable that needs re-evaluation
-        # (e.g. if its code changed or it's a direct data update)
+        # Add the target itself first if it's a variable
+        affected = []
         if event.target in self.state_manager.variables:
-            affected.add(event.target)
+            affected.append(event.target)
+        
+        # Identify dependent variables in BFS order
+        affected_dependents = self._get_all_dependents(event.target)
+        affected.extend(affected_dependents)
+        
 
         # 3. Update statuses and queue
         with self._status_lock, self._queue_lock:
@@ -87,12 +93,12 @@ class KEvaluator(KManager):
         if self._worker_thread.is_alive():
             self._worker_thread.join()
 
-    def _get_all_dependents(self, origin: str) -> Set[str]:
+    def _get_all_dependents(self, origin: str) -> list[str]:
         """
         BFS to find all symbols (variables or workflows) that depend on 'origin', 
-        directly or indirectly.
+        directly or indirectly. Returns them in BFS traversal order.
         """
-        affected = set()
+        affected = []
         queue = [origin]
         visited = {origin}
 
@@ -103,14 +109,14 @@ class KEvaluator(KManager):
             for var_name, state in self.state_manager.variables.items():
                 if current in state.dependencies and var_name not in visited:
                     visited.add(var_name)
-                    affected.add(var_name)
+                    affected.append(var_name)
                     queue.append(var_name)
             
             # Check workflows
             for wf_name, state in self.state_manager.workflows.items():
                 if current in state.dependencies and wf_name not in visited:
                     visited.add(wf_name)
-                    affected.add(wf_name)
+                    affected.append(wf_name)
                     queue.append(wf_name)
                     
         return affected
@@ -135,10 +141,13 @@ class KEvaluator(KManager):
         if not (is_var or is_wf):
             return
 
+        self._logger.info(f"Processing evaluation for: {name}")
+
         with self._status_lock:
             self._statuses[name] = KVariableStatus.PROCESSING
         
         status = KVariableStatus.READY
+        result = None
 
         if is_var:
             state = self.state_manager.variables[name]
@@ -148,7 +157,11 @@ class KEvaluator(KManager):
         elif is_wf:
             state = self.state_manager.workflows[name]
             result = state.kobject.eval(self.context)
-        
+
+        self._logger.info(f"Completed evaluation for: {name}")
+        if result is not None:
+            log_kobject(result)
+
         with self._status_lock:
             self._statuses[name] = status
 

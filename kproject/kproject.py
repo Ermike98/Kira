@@ -1,6 +1,7 @@
 from __future__ import annotations
 import hashlib
-from typing import Dict, Any, List, Optional, TYPE_CHECKING
+from typing import Dict, List, Optional, TYPE_CHECKING
+import logging
 
 if TYPE_CHECKING:
     from kproject.kevent import KEvent
@@ -13,6 +14,8 @@ from kproject.kevaluator import KEvaluator
 from kproject.kevent import KEventTypes
 from kira.core.kobject import KObject
 from library import load_libraries
+
+logger = logging.getLogger("kira.kproject")
 
 class KProject:
     """
@@ -81,6 +84,8 @@ class KProject:
         Main entry point for all state-changing actions.
         Orchestrates persistence, structure updates, and background evaluation.
         """
+        logger.info(f"Processing event: {event.type} for target: {event.target}")
+        
         # Handle Divergence: If we are not at the end of history, truncate the branch
         if self._current_index < len(self._history):
             # The first "future" event is at self._current_index

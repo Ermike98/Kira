@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, Set, Tuple, Dict
 from dataclasses import dataclass
 from kira import (ktokenize, 
@@ -22,6 +23,8 @@ class WorkflowState:
     ast: AstNode
     dependencies: Set[str]
     kobject: KNode
+
+logger = logging.getLogger("kira.kstate_manager")
 
 class KStateManager(KManager):
     """
@@ -54,7 +57,7 @@ class KStateManager(KManager):
                 raise TypeError(f"Unhandled event type: {v}")
 
     def _add_variable(self, event: KEvent):
-        assert event.target not in self.variables, f"AddVariable: '{event.target}' already present"
+        # assert event.target not in self.variables, f"AddVariable: '{event.target}' already present"
         code = event.body
         tokens = [t for t in ktokenize(code) if t.token_type.name != "WHITESPACE"]
         ast = kparse(tokens)
@@ -73,6 +76,7 @@ class KStateManager(KManager):
             dependencies=deps,
             kobject=kobj
         )
+        logger.info(f"Variable state updated: {event.target} -> {self.variables[event.target]}")
 
     def _add_workflow(self, event: KEvent):
         assert event.target not in self.workflows, f"AddWorkflow: '{event.target}' already present"
@@ -92,6 +96,7 @@ class KStateManager(KManager):
             dependencies=deps,
             kobject=kobj
         )
+        logger.info(f"Workflow state updated: {event.target} -> {self.workflows[event.target]}")
 
     def _update_workflow(self, event: KEvent):
         assert event.target in self.workflows, f"UpdateWorkflow: '{event.target}' not found"
@@ -112,6 +117,7 @@ class KStateManager(KManager):
             dependencies=deps,
             kobject=kobj
         )
+        logger.info(f"Workflow state updated: {event.target} -> {self.workflows[event.target]}")
 
     def _add_data(self, event: KEvent):
         assert event.target not in self.data_names, f"AddData: '{event.target}' already present"

@@ -209,7 +209,12 @@ class KPersistenceManager(KManager):
                 lit_type = kdata.value.lit_type
                 
                 if lit_type in (KLiteralType.DATE, KLiteralType.DATETIME):
-                    string_val = kdata.value.value.isoformat()
+                    import numpy as np
+                    val = kdata.value.value
+                    if isinstance(val, np.datetime64):
+                        string_val = str(val)
+                    else:
+                        string_val = val.isoformat()
                 else:
                     string_val = str(kdata.value.value)
                     
