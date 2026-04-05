@@ -21,8 +21,9 @@ class KWorkflow(KNode):
                  inputs: list[tuple[str, KTypeInfo] | str],
                  outputs: list[tuple[str, KTypeInfo] | str],
                  output_symbols: list[str],
-                 nodes: list[KObject] = None):
-        super().__init__(name, inputs, outputs)
+                 nodes: list[KObject] = None,
+                 default_inputs: dict[str, KDataValue] | None = None):
+        super().__init__(name, inputs, outputs, default_inputs=default_inputs)
         assert len(output_symbols) == len(outputs), "The number of output symbols must match the number of outputs"
         self._output_symbols = output_symbols
         self._nodes: list[KObject] = nodes if nodes is not None else []

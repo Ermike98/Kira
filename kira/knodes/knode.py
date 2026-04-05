@@ -33,7 +33,8 @@ class KNode(KObject):
     def __init__(self,
                  name: str | None,
                  inputs: list[tuple[str, KTypeInfo] | str],
-                 outputs: list[tuple[str, KTypeInfo] | str]
+                 outputs: list[tuple[str, KTypeInfo] | str],
+                 default_inputs: dict[str, KDataValue] | None = None
                  ):
         super().__init__(name=name)
 
@@ -44,6 +45,7 @@ class KNode(KObject):
         self._outputs_names = [el if isinstance(el, str) else el[0] for el in outputs]
         self._outputs_types: list[KTypeInfo] = [KAnyTypeInfo() if isinstance(el, str) else el[1] for el in
                                                 outputs]
+        self._default_inputs = default_inputs or {}
 
     def eval(self, context: KContext) -> KNode:
         context.register_object(self)
@@ -54,6 +56,11 @@ class KNode(KObject):
         pass
 
     def __call__(self, inputs: dict[str, KObject], context: KContext) -> list[KData]:
+        # integrate default values if they are missing
+        for name, default_val in self._default_inputs.items():
+            if name not in inputs:
+                inputs[name] = KData(name, default_val)
+
         # check input names
         missing_input_names = [name for name in self._input_names if (name not in inputs) or (not inputs[name])]
         if missing_input_names:
@@ -101,6 +108,10 @@ class KNode(KObject):
     @property
     def input_names(self) -> list[str]:
         return self._input_names
+
+    @property
+    def default_inputs(self) -> dict[str, KDataValue]:
+        return self._default_inputs
 
     @property
     def input_types(self) -> list[KTypeInfo]:

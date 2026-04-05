@@ -74,6 +74,7 @@ class AstWorkflow(AstNode):
     returns: list[str]
     body: list[AstStatement]
     token: KToken
+    defaults: dict[str, AstExpression] = None
 
 
 @dataclass
@@ -155,10 +156,19 @@ def _parse_workflow(stream: KTokenStream) -> AstWorkflow:
 
     stream.expect(KTokenType.OPEN_BRACKET, "Expected '('")
     inputs = []
+    defaults = {}
     if stream.current.token_type != KTokenType.CLOSE_BRACKET:
+        default_started = False
         while True:
             arg = stream.expect(KTokenType.SYMBOL, "Expected argument")
             inputs.append(arg.sym_str)
+            if stream.match(KTokenType.ASSIGN):
+                expr = _parse_expression(stream)
+                defaults[arg.sym_str] = expr
+                default_started = True
+            elif default_started:
+                raise SyntaxError(f"Non-default argument '{arg.sym_str}' follows default argument")
+            
             if not stream.match(KTokenType.COMMA):
                 break
     stream.expect(KTokenType.CLOSE_BRACKET, "Expected ')'")
@@ -189,7 +199,7 @@ def _parse_workflow(stream: KTokenStream) -> AstWorkflow:
             while stream.match(KTokenType.SEMICOLON) or stream.match(KTokenType.END_LINE):
                 pass
                 
-            return AstWorkflow(workflow_name, inputs, outputs, ret_symbols, body, name_token)
+            return AstWorkflow(workflow_name, inputs, outputs, ret_symbols, body, name_token, defaults)
 
         target_token = stream.expect(KTokenType.SYMBOL, "Expected variable name")
         assign_token = stream.expect(KTokenType.ASSIGN, "Expected '='")

@@ -27,7 +27,8 @@ class KNodeInstance(KObject):
         self._node = None
         
         if isinstance(node, KNode):
-            assert len(node_inputs) == len(node.input_names), "The number of inputs must match the number of inputs in the node"
+            min_expected = len(node.input_names) - len(node.default_inputs)
+            assert len(node_inputs) >= min_expected, f"Input count mismatch for '{node.name}'. Expected at least {min_expected}, got {len(node_inputs)}"
             self._node = node
             self._target_name = node.name
         else:
@@ -49,8 +50,9 @@ class KNodeInstance(KObject):
             assert isinstance(obj, KNode), f"Object '{self._target_name}' is not a KNode"
             self._node = obj
             # Deferred validation
-            assert len(self._node_inputs) == len(self._node.input_names), \
-                f"Input count mismatch for '{self._target_name}'. Expected {len(self._node.input_names)}, got {len(self._node_inputs)}"
+            min_expected = len(self._node.input_names) - len(self._node.default_inputs)
+            assert len(self._node_inputs) >= min_expected, \
+                f"Input count mismatch for '{self._target_name}'. Expected at least {min_expected}, got {len(self._node_inputs)}"
 
         inputs = {}
 
@@ -67,7 +69,6 @@ class KNodeInstance(KObject):
                         formulas_context.register_object(KData(col, KArray(df[col].to_numpy())))
 
             inputs[node_name] = KData(node_name, res.value, res.error)
-
 
         call_result = self._node(inputs, local_context)
 

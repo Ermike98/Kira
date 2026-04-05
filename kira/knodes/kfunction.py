@@ -14,9 +14,10 @@ class KFunction(KNode):
                  name: str,
                  func: Callable[[list[KData], KContext], list[KDataValue]],
                  inputs: list[tuple[str, KTypeInfo] | str],
-                 outputs: list[tuple[str, KTypeInfo] | str]
+                 outputs: list[tuple[str, KTypeInfo] | str],
+                 default_inputs: dict[str, KDataValue] | None = None
                  ):
-        super().__init__(name, inputs, outputs)
+        super().__init__(name, inputs, outputs, default_inputs=default_inputs)
         self._func = func
 
     def call(self, inputs: list[KData], context: KContext) -> list[KDataValue]:
@@ -32,7 +33,8 @@ def kfunction(
         outputs: list[tuple[str, KTypeInfo] | str],
         name: str = None,
         use_context: bool = False,
-        use_values: bool = True
+        use_values: bool = True,
+        default_inputs: dict[str, KDataValue] | None = None
 ):
     def decorator(func: Callable):
         sig = inspect.signature(func)
@@ -66,7 +68,8 @@ def kfunction(
             name=name or func.__name__,
             func=wrapper,
             inputs=inputs,
-            outputs=outputs
+            outputs=outputs,
+            default_inputs=default_inputs
         )
 
     return decorator

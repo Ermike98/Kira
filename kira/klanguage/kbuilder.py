@@ -109,10 +109,19 @@ def kbuild_workflow(ast_wf: AstWorkflow) -> KWorkflow:
         else:
             raise ValueError(f"Unknown AST expression type: {type(stmt)}")
 
+    defaults = {}
+    if ast_wf.defaults:
+        for name, expr in ast_wf.defaults.items():
+            data = kbuild_expression(expr, None)
+            if not isinstance(data, KData):
+                raise ValueError(f"Default value for '{name}' must be a constant expression")
+            defaults[name] = data.value
+
     return KWorkflow(
         ast_wf.name,
         ast_wf.inputs,
         ast_wf.outputs,
         ast_wf.returns,
-        nodes=nodes
+        nodes=nodes,
+        default_inputs=defaults
     )
