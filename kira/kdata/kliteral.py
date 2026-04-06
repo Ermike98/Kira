@@ -30,7 +30,7 @@ class KLiteralTypeInfo(KTypeInfo):
     def __repr__(self) -> str:
         return f"KLiteralTypeInfo({self._lit_type.name})"
 
-
+K_LITERAL_TYPE = KLiteralTypeInfo(KLiteralType.ANY)
 K_INTEGER_TYPE = KLiteralTypeInfo(KLiteralType.INTEGER)
 K_NUMBER_TYPE = KLiteralTypeInfo(KLiteralType.NUMBER)
 K_STRING_TYPE = KLiteralTypeInfo(KLiteralType.STRING)

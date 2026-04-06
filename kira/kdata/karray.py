@@ -86,7 +86,7 @@ class KArray(KDataValue):
         return KArray.infer_type(data) == lit_type
 
     @property
-    def value(self):
+    def value(self) -> pd.Series:
         return self._data
 
     @property
