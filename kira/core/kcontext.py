@@ -1,6 +1,7 @@
 from __future__ import annotations
 from kira.core.kobject import KObject
 from kira.kexpections.kgenericexception import KGenericException
+from kira.kdata.kdata import KData
 
 
 class KContext:
@@ -24,6 +25,6 @@ class KContext:
             if self._parent is not None:
                 return self._parent.get_object(name)
 
-            return KGenericException(f"Object '{name}' not found in context")
+            return KData(name, None, KGenericException(f"Object '{name}' not found in context"))
 
         return self._objects[name]

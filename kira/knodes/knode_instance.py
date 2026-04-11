@@ -8,6 +8,7 @@ from kira.kdata.kcollection import KCollection
 from kira.kdata.ktable import KTable
 from kira.kdata.karray import KArray
 from kira.knodes.knode import KNode
+from kira.kexpections.kgenericexception import KGenericException
 
 
 class KNodeInstanceTypeInfo(KTypeInfo):
@@ -51,8 +52,14 @@ class KNodeInstance(KObject):
             self._node = obj
             # Deferred validation
             min_expected = len(self._node.input_names) - len(self._node.default_inputs)
-            assert len(self._node_inputs) >= min_expected, \
-                f"Input count mismatch for '{self._target_name}'. Expected at least {min_expected}, got {len(self._node_inputs)}"
+
+            if len(self._node_inputs) < min_expected:
+                result = KData(self.name, None, KGenericException(f"Input count mismatch for '{self._target_name}'. Expected at least {min_expected}, got {len(self._node_inputs)}"))
+                context.register_object(result)
+                return result
+
+            # assert len(self._node_inputs) >= min_expected, \
+            #     f"Input count mismatch for '{self._target_name}'. Expected at least {min_expected}, got {len(self._node_inputs)}"
 
         inputs = {}
 
@@ -61,9 +68,12 @@ class KNodeInstance(KObject):
                 res = node_input.eval(formulas_context)
             else:
                 res = node_input.eval(local_context)
+
+                if isinstance(res, KGenericException):
+                    res = KData(node_name, None, res)
                 
                 # Auto-unpack strategy: inject DataFrame columns into formulas_context
-                if isinstance(res.value, KTable):
+                if res and isinstance(res.value, KTable):
                     df = res.value.value
                     for col in df.columns:
                         formulas_context.register_object(KData(col, KArray(df[col].to_numpy())))
