@@ -38,6 +38,7 @@ class KTokenType(enum.Enum):
 
     WORKFLOW = "workflow"
     RETURN = "return"
+    BOOLEAN = "true|false"
 
     PIPE = "|>"
 
@@ -194,6 +195,8 @@ def ktokenize(expression: str):
                 tokens.append(KToken(word, KTokenType.WORKFLOW))
             elif word == "return":
                 tokens.append(KToken(word, KTokenType.RETURN))
+            elif word in ("true", "false"):
+                tokens.append(KToken(word, KTokenType.BOOLEAN))
             else:
                 tokens.append(KToken(word, KTokenType.SYMBOL))
 

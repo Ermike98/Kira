@@ -355,6 +355,11 @@ def _parse_primary(stream: KTokenStream) -> AstExpression:
             val = int(num_str)
         return _parse_trailers(stream, AstLiteral(val, token))
 
+    elif stream.current.token_type == KTokenType.BOOLEAN:
+        token = stream.advance()
+        val = token.sym_str == "true"
+        return _parse_trailers(stream, AstLiteral(val, token))
+
     raise SyntaxError(f"Unexpected token {stream.current}")
 
 
