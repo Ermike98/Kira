@@ -1,13 +1,15 @@
 import pandas as pd
 
 from kira.kdata.ktable import KTable, K_TABLE_TYPE
-from kira.kdata.karray import KArray, K_ARRAY_STRING_TYPE, K_ARRAY_TYPE
-from kira.kdata.kliteral import KLiteral, KLiteralType, K_INTEGER_TYPE, K_STRING_TYPE
+from kira.kdata.karray import KArray, K_ARRAY_STRING_TYPE, K_ARRAY_TYPE, K_ARRAY_BOOLEAN_TYPE
+from kira.kdata.kliteral import KLiteral, KLiteralType, K_INTEGER_TYPE, K_STRING_TYPE, K_BOOLEAN_TYPE
 from kira.knodes.kfunction import kfunction
 from kira.ktypeinfo.union_type import KUnionTypeInfo
 from kira.kdata.kerrorvalue import KErrorValue
 from kira.kexpections.kgenericexception import KGenericException
-from library.builtin_library import k_builtin_library
+from kira.library.node_library import KLibrary
+
+k_table_library = KLibrary("Table")
 
 # Table Functions
 
@@ -20,9 +22,9 @@ from library.builtin_library import k_builtin_library
     use_context=False
 )
 def k_table_nrows(df_obj: KTable):
-    return [KLiteral(len(df_obj.value), K_INTEGER_TYPE)]
+    return [KLiteral(len(df_obj.value), KLiteralType.INTEGER)]
 
-k_builtin_library.register(k_table_nrows)
+k_table_library.register(k_table_nrows)
 
 # ncols(df) -> int # number of columns
 @kfunction(
@@ -33,9 +35,9 @@ k_builtin_library.register(k_table_nrows)
     use_context=False
 )
 def k_table_ncols(df_obj: KTable):
-    return [KLiteral(len(df_obj.value.columns), K_INTEGER_TYPE)]
+    return [KLiteral(len(df_obj.value.columns), KLiteralType.INTEGER)]
 
-k_builtin_library.register(k_table_ncols)
+k_table_library.register(k_table_ncols)
 
 # columns(df) -> array[str] # column names
 @kfunction(
@@ -48,7 +50,7 @@ k_builtin_library.register(k_table_ncols)
 def k_table_columns(df_obj: KTable):
     return [KArray(pd.Series(list(df_obj.value.columns)), KLiteralType.STRING)]
 
-k_builtin_library.register(k_table_columns)
+k_table_library.register(k_table_columns)
 
 
 # slice(df, rows: array[int], columns: array[str]) -> table # DO NOT IMPLEMENT
@@ -66,7 +68,7 @@ def k_table_select(df_obj: KTable, columns_obj: KArray):
     cols = columns_obj.value.tolist()
     return [KTable(df_obj.value[cols])]
 
-k_builtin_library.register(k_table_select)
+k_table_library.register(k_table_select)
 
 # head(df, n=5) -> table
 @kfunction(
@@ -75,12 +77,12 @@ k_builtin_library.register(k_table_select)
     name="head",
     use_values=True,
     use_context=False,
-    default_inputs={"n": KLiteral(5, K_INTEGER_TYPE)}
+    default_inputs={"n": KLiteral(5, KLiteralType.INTEGER)}
 )
 def k_table_head(df_obj: KTable, n_obj: KLiteral):
     return [KTable(df_obj.value.head(n_obj.value))]
 
-k_builtin_library.register(k_table_head)
+k_table_library.register(k_table_head)
 
 # tail(df, n=5) -> table
 @kfunction(
@@ -89,12 +91,12 @@ k_builtin_library.register(k_table_head)
     name="tail",
     use_values=True,
     use_context=False,
-    default_inputs={"n": KLiteral(5, K_INTEGER_TYPE)}
+    default_inputs={"n": KLiteral(5, KLiteralType.INTEGER)}
 )
 def k_table_tail(df_obj: KTable, n_obj: KLiteral):
     return [KTable(df_obj.value.tail(n_obj.value))]
 
-k_builtin_library.register(k_table_tail)
+k_table_library.register(k_table_tail)
 
 # add_column(df, name: string, values: array) -> table
 @kfunction(
@@ -109,7 +111,7 @@ def k_table_add_column(df_obj: KTable, name_obj: KLiteral, values_obj: KArray):
     new_df[name_obj.value] = values_obj.value
     return [KTable(new_df)]
 
-k_builtin_library.register(k_table_add_column)
+k_table_library.register(k_table_add_column)
 
 # remove_column(df, name: string) -> table
 @kfunction(
@@ -141,7 +143,7 @@ def k_table_remove_columns(df_obj: KTable, names_obj: KArray):
         new_df = new_df.drop(columns=cols)
     return [KTable(new_df)]
 
-k_builtin_library.register(k_table_remove_columns)
+k_table_library.register(k_table_remove_columns)
 
 # rename_column(df, old_name: string, new_name: string) -> table
 @kfunction(
@@ -155,7 +157,7 @@ def k_table_rename_column(df_obj: KTable, old_name_obj: KLiteral, new_name_obj: 
     new_df = df_obj.value.rename(columns={old_name_obj.value: new_name_obj.value})
     return [KTable(new_df)]
 
-k_builtin_library.register(k_table_rename_column)
+k_table_library.register(k_table_rename_column)
 
 # update_column(df, name: string, values: array) -> table # Do NOT IMPLEMENT - Implement via workflow
 
@@ -170,7 +172,7 @@ k_builtin_library.register(k_table_rename_column)
 def k_table_transpose(df_obj: KTable):
     return [KTable(df_obj.value.T)]
 
-k_builtin_library.register(k_table_transpose)
+k_table_library.register(k_table_transpose)
 
 # pivot(df: table, index: str | array[str], columns: str | array[str], value: str) -> table
 @kfunction(
@@ -191,7 +193,7 @@ def k_table_pivot(df_obj: KTable, index_obj, columns_obj, value_obj: KLiteral):
     pivoted = df_obj.value.pivot(index=idx, columns=cols, values=value_obj.value)
     return [KTable(pivoted.reset_index())]
 
-k_builtin_library.register(k_table_pivot)
+k_table_library.register(k_table_pivot)
 
 # melt(df: table, id_vars: str | array[str]) -> table
 @kfunction(
@@ -208,7 +210,7 @@ def k_table_melt(df_obj: KTable, id_vars_obj):
     idx = id_vars_obj.value.tolist() if isinstance(id_vars_obj, KArray) else id_vars_obj.value
     return [KTable(df_obj.value.melt(id_vars=idx))]
 
-k_builtin_library.register(k_table_melt)
+k_table_library.register(k_table_melt)
 
 # aggregate(df: table, by: str | array[str], columns: str | array[str], functions: str | array[str]) -> table # DO NOT IMPLEMENT
 
@@ -224,7 +226,7 @@ k_builtin_library.register(k_table_melt)
     name="join",
     use_values=False,
     use_context=False,
-    default_inputs={"how": KLiteral("inner", K_STRING_TYPE)}
+    default_inputs={"how": KLiteral("inner", KLiteralType.STRING)}
 )
 def k_table_join(df1_data, df2_data, on_data, how_data):
     df1_obj = df1_data.value
@@ -238,7 +240,7 @@ def k_table_join(df1_data, df2_data, on_data, how_data):
     joined = pd.merge(df1_obj.value, df2_obj.value, on=on_cols, how=how_obj.value, suffixes=suffixes)
     return [KTable(joined)]
 
-k_builtin_library.register(k_table_join)
+k_table_library.register(k_table_join)
 
 # hstack(df1: table, df2: table) -> table
 @kfunction(
@@ -251,7 +253,7 @@ k_builtin_library.register(k_table_join)
 def k_table_hstack(df1_obj: KTable, df2_obj: KTable):
     return [KTable(pd.concat([df1_obj.value, df2_obj.value], axis=1))]
 
-k_builtin_library.register(k_table_hstack)
+k_table_library.register(k_table_hstack)
 
 # vstack(df1: table, df2: table) -> table
 @kfunction(
@@ -264,7 +266,7 @@ k_builtin_library.register(k_table_hstack)
 def k_table_vstack(df1_obj: KTable, df2_obj: KTable):
     return [KTable(pd.concat([df1_obj.value, df2_obj.value], axis=0, ignore_index=True))]
 
-k_builtin_library.register(k_table_vstack)
+k_table_library.register(k_table_vstack)
 
 # concat(dfs: array[table]) -> table
 @kfunction(
@@ -279,7 +281,7 @@ def k_table_concat(dfs_obj: KArray):
         return [KErrorValue(KGenericException("All elements in the array must be KTable"))]
     return [KTable(pd.concat([df.value for df in dfs_obj.value.to_list()], axis=0, ignore_index=True))]
 
-k_builtin_library.register(k_table_concat)
+k_table_library.register(k_table_concat)
 
 # rolling(df, window, columns: str | array[str], functions: str | array[str]) -> table # DO NOT IMPLEMENT
 
@@ -290,13 +292,16 @@ k_builtin_library.register(k_table_concat)
     name="sort_table",
     use_values=True,
     use_context=False,
-    default_inputs={"ascending": KLiteral(True, K_BOOLEAN_TYPE)}
+    default_inputs={"ascending": KLiteral(True, KLiteralType.BOOLEAN)}
 )
 def k_table_sort_table(df_obj: KTable, by_obj, ascending_obj: KLiteral):
+    print(f"sort_table: {by_obj}, {ascending_obj}")
     by_cols = by_obj.value.tolist() if isinstance(by_obj, KArray) else by_obj.value
-    return [KTable(df_obj.value.sort_values(by=by_cols, ascending=ascending_obj.value))]
+    ascending = bool(ascending_obj.value)
+    print(f"sort_table: {by_cols}, {ascending}")
+    return [KTable(df_obj.value.sort_values(by=by_cols, ascending=ascending))]
 
-k_builtin_library.register(k_table_sort_table)
+k_table_library.register(k_table_sort_table)
 
 # Table and Array Functions
 
@@ -315,7 +320,7 @@ def k_table_filter(x_obj, condition_obj):
         return [KTable(x_obj.value[condition_obj.value])]
     return [KArray(x_obj.value[condition_obj.value])]
 
-k_builtin_library.register(k_table_filter)
+k_table_library.register(k_table_filter)
 
 
 # String Functions - both string literals and arrays

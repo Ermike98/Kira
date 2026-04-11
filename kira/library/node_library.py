@@ -21,8 +21,10 @@ class KLibrary(KObject):
         return KNoTypeInfo()
 
     def eval(self, context: KContext) -> KObject:
+        print(f"Loading library '{self.name}'")
         context.register_object(self)
         for obj in self._library.values():
+            print(f"Registering object '{obj.name}'")
             context.register_object(obj)
         return self
 

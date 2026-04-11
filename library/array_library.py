@@ -5,9 +5,11 @@ from kira.kdata.karray import (K_ARRAY_INTEGER_TYPE, K_ARRAY_NUMBER_TYPE, K_ARRA
 from kira.kdata.kliteral import (K_BOOLEAN_TYPE, K_INTEGER_TYPE, K_NUMBER_TYPE, K_STRING_TYPE, K_LITERAL_TYPE, KLiteral,
                                  KLiteralType)
 from kira.knodes.kfunction import KFunction, kfunction
-from library.builtin_library import k_builtin_library
+from kira.library.node_library import KLibrary
 
 import pandas as pd
+
+k_array_library = KLibrary("Array")
 
 # Array Functions
 
@@ -23,7 +25,7 @@ def k_array_len(x_obj):
     x = x_obj.value
     return [KLiteral(len(x), K_INTEGER_TYPE)]
 
-k_builtin_library.register(k_array_len)
+k_array_library.register(k_array_len)
 
 # range(start, stop, step=1) -> array
 @kfunction(
@@ -32,12 +34,12 @@ k_builtin_library.register(k_array_len)
     name="range",
     use_values=False,
     use_context=False,
-    default_inputs={"step": KLiteral(1, K_INTEGER_TYPE)}
+    default_inputs={"step": KLiteral(1, KLiteralType.INTEGER)}
 )
 def k_array_range(start_: KLiteral, stop_: KLiteral, step_: KLiteral):
     return [KArray(pd.Series(np.arange(start_.value, stop_.value, step_.value)))]
 
-k_builtin_library.register(k_array_range)
+k_array_library.register(k_array_range)
 
 # sort(x: array, ascending=True) -> array
 @kfunction(
@@ -46,12 +48,12 @@ k_builtin_library.register(k_array_range)
     name="sort",
     use_values=True,
     use_context=False,
-    default_inputs={"ascending": KLiteral(True, K_BOOLEAN_TYPE)}
+    default_inputs={"ascending": KLiteral(True, KLiteralType.BOOLEAN)}
 )
 def k_array_sort(x_obj: KArray, ascending_: KLiteral):
     return [KArray(x_obj.value.sort_value(ascending=ascending_.value), x_obj.lit_type)]
 
-k_builtin_library.register(k_array_sort)
+k_array_library.register(k_array_sort)
 
 # argsort(x: array, ascending=True) -> array
 @kfunction(
@@ -60,7 +62,7 @@ k_builtin_library.register(k_array_sort)
     name="argsort",
     use_values=True,
     use_context=False,
-    default_inputs={"ascending": KLiteral(True, K_BOOLEAN_TYPE)}
+    default_inputs={"ascending": KLiteral(True, KLiteralType.BOOLEAN)}
 )
 def k_array_argsort(x_obj: KArray, ascending_: KLiteral):
     idx = x_obj.value.argsort()
@@ -69,7 +71,7 @@ def k_array_argsort(x_obj: KArray, ascending_: KLiteral):
 
     return [KArray(len(x_obj.value) - 1 - idx, K_ARRAY_INTEGER_TYPE)]
 
-k_builtin_library.register(k_array_argsort)
+k_array_library.register(k_array_argsort)
 
 # reverse(x: array) -> array
 @kfunction(
@@ -82,7 +84,7 @@ k_builtin_library.register(k_array_argsort)
 def k_array_reverse(x_obj: KArray):
     return [KArray(x_obj.value.iloc[::-1].reset_index(drop=True), x_obj.lit_type)]
 
-k_builtin_library.register(k_array_reverse)
+k_array_library.register(k_array_reverse)
 
 # unique(x: array) -> array
 @kfunction(
@@ -95,4 +97,4 @@ k_builtin_library.register(k_array_reverse)
 def k_array_unique(x_obj: KArray):
     return [KArray(pd.Series(x_obj.value.unique()), x_obj.lit_type)]
 
-k_builtin_library.register(k_array_unique)
+k_array_library.register(k_array_unique)
