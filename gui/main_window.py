@@ -167,8 +167,20 @@ class MainWindow(QMainWindow):
                 view.set_kdata(name, kdata)
                 icon_name = get_icon_name_for_type(kdata.type)
             
-            self.content_tabs.addTab(view, type_icon(icon_name), name)
-            self.content_tabs.setCurrentWidget(view)
+            if type == "Variable":
+                # Split view: DataView (left) | StepEditorPanel (right)
+                from gui.components.step_editor import StepEditorPanel
+                splitter = QSplitter(Qt.Horizontal)
+                splitter.addWidget(view)
+                step_editor = StepEditorPanel(self.project, name)
+                splitter.addWidget(step_editor)
+                splitter.setStretchFactor(0, 3)  # DataView gets more space
+                splitter.setStretchFactor(1, 2)
+                self.content_tabs.addTab(splitter, type_icon(icon_name), name)
+                self.content_tabs.setCurrentWidget(splitter)
+            else:
+                self.content_tabs.addTab(view, type_icon(icon_name), name)
+                self.content_tabs.setCurrentWidget(view)
 
     def _close_tab(self, index: int):
         widget = self.content_tabs.widget(index)

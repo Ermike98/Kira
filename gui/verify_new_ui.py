@@ -25,6 +25,9 @@ from gui.main_window import run_gui
 from kira.knodes.kfunction import kfunction
 from kira.library.node_library import KLibrary
 
+import logging
+from klogging.klogging import setup_logging
+setup_logging(level=logging.INFO, log_file=None)
 
 def setup_demo_project():
     """Initializes a KProject with mock data and variables."""
@@ -96,6 +99,10 @@ def setup_demo_project():
         "order_avg":     "order_avg = 348",
         "count_customers": "count_customers = 3594",
         "slow_var":      "slow_var = wait(3)",
+        # Pipe-based variables for step editor testing
+        "filtered_sales": 'filtered_sales = Sales_Table |> head(20)',
+        "selected_cols":  'selected_cols = Sales_Table |> head(10) |> select(["Region", "Revenue"])',
+        "row_count":      "row_count = Sales_Table |> nrows",
     }
     for name, expr in variables.items():
         project.process_event(KEventTypes.AddVariable, name, expr)

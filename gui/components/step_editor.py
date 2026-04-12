@@ -1,0 +1,696 @@
+"""
+gui/components/step_editor.py
+------------------------------
+Visual Pipeline Editor for variables.
+
+Decomposes a variable's code (e.g. ``y = Sales_Table |> head(10) |> select(["Region"])``)
+into an editable list of steps: a Source card followed by zero or more
+function-step cards.  Each card exposes inline text inputs for the
+function's parameters (the first "piped" arg is hidden).
+
+On blur of any input the full code string is recomposed, validated via
+the tokenizer + parser, and — if valid — committed as an ``AddVariable``
+event through ``QTProject``.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+from typing import Optional, List, Tuple, TYPE_CHECKING
+
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QLineEdit, QFrame, QScrollArea, QPushButton,
+    QListWidget, QListWidgetItem, QAbstractItemView,
+    QSizePolicy
+)
+from PySide6.QtCore import Qt, Signal, QSize, QTimer
+from PySide6.QtGui import QFont
+
+from gui.utils import colors
+from gui import style_system
+
+if TYPE_CHECKING:
+    from gui.qt_project import QTProject
+
+logger = logging.getLogger("kira.step_editor")
+
+
+# ---------------------------------------------------------------------------#
+#  1. Pipeline Utilities                                                      #
+# ---------------------------------------------------------------------------#
+
+def decompose_variable_code(code: str) -> Tuple[str, str, List[str]]:
+    """Split a variable code string into (target, source, [step, ...]).
+
+    Uses the Kira tokenizer to find the assignment ``=`` and top-level
+    ``|>`` tokens (respecting bracket depth so nested pipes are not split).
+
+    Returns
+    -------
+    target : str
+        Variable name (left of ``=``).
+    source : str
+        Source expression string (first segment after ``=``).
+    steps : list[str]
+        Remaining pipe-step strings (e.g. ``["head(10)", "select([\"R\"])"]``).
+    """
+    from kira.klanguage.ktokenizer import ktokenize, KTokenType
+
+    tokens = ktokenize(code)
+    # Strip whitespace tokens for analysis but keep positions in source
+    meaningful = [(t, i) for i, t in enumerate(tokens) if t.token_type != KTokenType.WHITESPACE]
+
+    # --- Find assignment '=' ---
+    assign_char_pos = None
+    for t, _ in meaningful:
+        if t.token_type == KTokenType.ASSIGN:
+            # Find position in original code string
+            # We'll locate by scanning the code for '=' that's not '=='
+            break
+
+    # Simpler: find first '=' that is ASSIGN (not '==') by re-scanning code
+    # We'll use a character-offset approach instead
+    assign_idx = _find_assign_offset(code)
+    if assign_idx is None:
+        # No assignment — treat entire code as source
+        return ("", code.strip(), [])
+
+    target = code[:assign_idx].strip()
+    rhs = code[assign_idx + 1:].strip()
+
+    # --- Split RHS by top-level |> ---
+    parts = _split_by_toplevel_pipe(rhs)
+    source = parts[0].strip()
+    steps = [p.strip() for p in parts[1:]]
+
+    return target, source, steps
+
+
+def _find_assign_offset(code: str) -> Optional[int]:
+    """Return the character offset of the first top-level ``=`` (not ``==``)."""
+    i = 0
+    depth = 0
+    while i < len(code):
+        ch = code[i]
+        if ch in ("(", "["):
+            depth += 1
+        elif ch in (")", "]"):
+            depth -= 1
+        elif ch == "=" and depth == 0:
+            # Check it's not '=='
+            if i + 1 < len(code) and code[i + 1] == "=":
+                i += 2
+                continue
+            # Check it's not '<=' or '>=' or '!='
+            if i > 0 and code[i - 1] in ("<", ">", "!"):
+                i += 1
+                continue
+            return i
+        elif ch in ('"', "'"):
+            # Skip string
+            quote = ch
+            i += 1
+            while i < len(code) and code[i] != quote:
+                i += 1
+        i += 1
+    return None
+
+
+def _split_by_toplevel_pipe(expr: str) -> List[str]:
+    """Split *expr* by top-level ``|>`` tokens, respecting brackets and strings."""
+    parts: List[str] = []
+    depth = 0
+    current_start = 0
+    i = 0
+    while i < len(expr):
+        ch = expr[i]
+        if ch in ("(", "["):
+            depth += 1
+        elif ch in (")", "]"):
+            depth -= 1
+        elif ch in ('"', "'"):
+            quote = ch
+            i += 1
+            while i < len(expr) and expr[i] != quote:
+                i += 1
+        elif ch == "$":
+            # Skip formula $...$
+            i += 1
+            while i < len(expr) and expr[i] != "$":
+                i += 1
+        elif ch == "|" and depth == 0:
+            if i + 1 < len(expr) and expr[i + 1] == ">":
+                parts.append(expr[current_start:i].strip())
+                i += 2  # skip |>
+                current_start = i
+                continue
+        i += 1
+    # Last segment
+    parts.append(expr[current_start:].strip())
+    return parts
+
+
+def compose_variable_code(target: str, source: str, steps: List[Tuple[str, List[str]]]) -> str:
+    """Build a full variable assignment string from parts.
+
+    Parameters
+    ----------
+    target : str
+        Variable name.
+    source : str
+        Source expression string.
+    steps : list of (func_name, [arg_str, ...])
+        Each step's function name and non-piped argument strings.
+    """
+    code = f"{target} = {source}"
+    for func_name, args in steps:
+        if args:
+            args_str = ", ".join(args)
+            code += f" |> {func_name}({args_str})"
+        else:
+            code += f" |> {func_name}"
+    return code
+
+
+def parse_step_string(step_str: str) -> Tuple[str, List[str]]:
+    """Parse a step string like ``head(10, 5)`` into ``("head", ["10", "5"])``.
+
+    Also handles zero-arg calls: ``"transpose"`` → ``("transpose", [])``.
+    """
+    step_str = step_str.strip()
+    paren_idx = step_str.find("(")
+    if paren_idx == -1:
+        return (step_str, [])
+
+    func_name = step_str[:paren_idx].strip()
+    # Extract content between outer parens
+    inner = step_str[paren_idx + 1:]
+    if inner.endswith(")"):
+        inner = inner[:-1]
+
+    args = _split_args(inner)
+    return func_name, args
+
+
+def _split_args(inner: str) -> List[str]:
+    """Split a comma-separated argument string respecting brackets and strings."""
+    args: List[str] = []
+    depth = 0
+    current_start = 0
+    i = 0
+    while i < len(inner):
+        ch = inner[i]
+        if ch in ("(", "["):
+            depth += 1
+        elif ch in (")", "]"):
+            depth -= 1
+        elif ch in ('"', "'"):
+            quote = ch
+            i += 1
+            while i < len(inner) and inner[i] != quote:
+                i += 1
+        elif ch == "$":
+            i += 1
+            while i < len(inner) and inner[i] != "$":
+                i += 1
+        elif ch == "," and depth == 0:
+            args.append(inner[current_start:i].strip())
+            current_start = i + 1
+        i += 1
+    # Last arg
+    last = inner[current_start:].strip()
+    if last:
+        args.append(last)
+    return args
+
+
+# ---------------------------------------------------------------------------#
+#  2. Data Classes                                                            #
+# ---------------------------------------------------------------------------#
+
+@dataclass
+class PipelineStep:
+    """In-memory representation of one step in the pipeline."""
+    func_name: str = ""
+    param_names: List[str] = field(default_factory=list)
+    param_values: List[str] = field(default_factory=list)
+    param_defaults: List[Optional[str]] = field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------#
+#  3. Source Card                                                             #
+# ---------------------------------------------------------------------------#
+
+class SourceCard(QFrame):
+    """Card for the pipeline source expression — visually distinct from steps."""
+
+    source_changed = Signal()
+
+    def __init__(self, source_text: str = "", parent=None):
+        super().__init__(parent)
+        self.setObjectName("SourceCard")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
+
+        # Header
+        header = QHBoxLayout()
+        lbl = QLabel("Source")
+        lbl.setObjectName("SourceCardTitle")
+        header.addWidget(lbl)
+        header.addStretch()
+        layout.addLayout(header)
+
+        # Input
+        self.input = QLineEdit(source_text)
+        self.input.setObjectName("StepParamInput")
+        self.input.setPlaceholderText("e.g. Sales_Table, 1250000, range(1, 10)")
+        self.input.editingFinished.connect(self.source_changed.emit)
+        layout.addWidget(self.input)
+
+    @property
+    def value(self) -> str:
+        return self.input.text().strip()
+
+    @value.setter
+    def value(self, v: str):
+        self.input.setText(v)
+
+
+# ---------------------------------------------------------------------------#
+#  4. Step Card                                                               #
+# ---------------------------------------------------------------------------#
+
+class StepCard(QFrame):
+    """Card for a single function step in the pipeline."""
+
+    step_changed = Signal()
+    step_deleted = Signal()
+    func_name_changed = Signal(str)  # emitted when user changes function name
+
+    def __init__(self, step: PipelineStep, step_index: int = 0, parent=None):
+        super().__init__(parent)
+        self.setObjectName("StepCard")
+        self._step = step
+        self._step_index = step_index
+        self._param_inputs: List[QLineEdit] = []
+
+        self._main_layout = QVBoxLayout(self)
+        self._main_layout.setContentsMargins(12, 10, 12, 10)
+        self._main_layout.setSpacing(6)
+
+        # ---- Header ----
+        header = QHBoxLayout()
+        header.setSpacing(8)
+
+        # Drag handle
+        drag_lbl = QLabel("≡")
+        drag_lbl.setObjectName("StepDragHandle")
+        drag_lbl.setCursor(Qt.OpenHandCursor)
+        header.addWidget(drag_lbl)
+
+        # Step number badge
+        self._step_badge = QLabel(f"Step {step_index + 1}")
+        self._step_badge.setObjectName("StepBadge")
+        header.addWidget(self._step_badge)
+
+        # Function name (editable if empty, label if set)
+        if step.func_name:
+            self._func_label = QLabel(step.func_name)
+            self._func_label.setObjectName("StepFuncName")
+            header.addWidget(self._func_label)
+            self._func_input = None
+        else:
+            self._func_input = QLineEdit()
+            self._func_input.setObjectName("StepFuncInput")
+            self._func_input.setPlaceholderText("function name…")
+            self._func_input.editingFinished.connect(self._on_func_name_entered)
+            header.addWidget(self._func_input)
+            self._func_label = None
+
+        header.addStretch()
+
+        # Delete button
+        del_btn = QPushButton("×")
+        del_btn.setObjectName("StepDeleteButton")
+        del_btn.setFixedSize(24, 24)
+        del_btn.setCursor(Qt.PointingHandCursor)
+        del_btn.clicked.connect(self.step_deleted.emit)
+        header.addWidget(del_btn)
+
+        self._main_layout.addLayout(header)
+
+        # ---- Parameter inputs ----
+        self._params_container = QWidget()
+        self._params_layout = QVBoxLayout(self._params_container)
+        self._params_layout.setContentsMargins(0, 0, 0, 0)
+        self._params_layout.setSpacing(4)
+        self._main_layout.addWidget(self._params_container)
+
+        self._build_param_inputs()
+
+    def _build_param_inputs(self):
+        """Create text inputs for each parameter."""
+        # Clear existing
+        self._param_inputs.clear()
+        while self._params_layout.count():
+            item = self._params_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        for name, value, default in zip(
+            self._step.param_names,
+            self._step.param_values,
+            self._step.param_defaults
+        ):
+            row = QHBoxLayout()
+            row.setSpacing(8)
+
+            lbl = QLabel(name)
+            lbl.setObjectName("StepParamLabel")
+            lbl.setFixedWidth(90)
+            lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            row.addWidget(lbl)
+
+            inp = QLineEdit(value)
+            inp.setObjectName("StepParamInput")
+            if default is not None:
+                inp.setPlaceholderText(f"default: {default}")
+            inp.editingFinished.connect(self._on_param_changed)
+            row.addWidget(inp)
+
+            self._param_inputs.append(inp)
+            self._params_layout.addLayout(row)
+
+    def _on_func_name_entered(self):
+        """User typed a function name in the blank input."""
+        if self._func_input:
+            name = self._func_input.text().strip()
+            if name:
+                self.func_name_changed.emit(name)
+
+    def _on_param_changed(self):
+        """Sync param values back into the step model and emit."""
+        for i, inp in enumerate(self._param_inputs):
+            if i < len(self._step.param_values):
+                self._step.param_values[i] = inp.text().strip()
+        self.step_changed.emit()
+
+    def update_step(self, step: PipelineStep, index: int):
+        """Replace the displayed step and rebuild param inputs."""
+        self._step = step
+        self._step_index = index
+        self._step_badge.setText(f"Step {index + 1}")
+
+        # Replace function name label
+        if self._func_label:
+            self._func_label.setText(step.func_name)
+        elif self._func_input and step.func_name:
+            # Switch from input to label
+            self._func_input.setVisible(False)
+            self._func_label = QLabel(step.func_name)
+            self._func_label.setObjectName("StepFuncName")
+            # Insert after badge
+            header_layout = self._main_layout.itemAt(0).layout()
+            header_layout.insertWidget(2, self._func_label)
+
+        self._build_param_inputs()
+
+    @property
+    def step(self) -> PipelineStep:
+        return self._step
+
+
+# ---------------------------------------------------------------------------#
+#  5. Pipeline Arrow (visual connector)                                       #
+# ---------------------------------------------------------------------------#
+
+class _PipelineArrow(QWidget):
+    """A small "↓" connector between cards."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(20)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setAlignment(Qt.AlignCenter)
+        lbl = QLabel("↓")
+        lbl.setObjectName("PipelineArrow")
+        lbl.setAlignment(Qt.AlignCenter)
+        layout.addWidget(lbl)
+
+
+# ---------------------------------------------------------------------------#
+#  6. Step Editor Panel                                                       #
+# ---------------------------------------------------------------------------#
+
+class StepEditorPanel(QWidget):
+    """Full pipeline editor panel.
+
+    Shows a SourceCard + a list of StepCards with drag-and-drop reordering.
+    On any edit, recomposes the code, validates parsing, and fires an
+    ``AddVariable`` event.
+    """
+
+    def __init__(self, project: QTProject, variable_name: str, parent=None):
+        super().__init__(parent)
+        self.project = project
+        self.variable_name = variable_name
+        self.setObjectName("StepEditorPanel")
+
+        self._source_text: str = ""
+        self._steps: List[PipelineStep] = []
+        self._step_cards: List[StepCard] = []
+        self._committing = False  # re-entrance guard
+
+        # ---- Layout ----
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        # Header
+        header = QWidget()
+        header.setObjectName("StepEditorHeader")
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(16, 12, 16, 10)
+        title = QLabel("Pipeline")
+        title.setObjectName("StepEditorTitle")
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+        outer.addWidget(header)
+
+        # Scroll area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        outer.addWidget(scroll)
+
+        self._content = QWidget()
+        self._content_layout = QVBoxLayout(self._content)
+        self._content_layout.setContentsMargins(12, 8, 12, 12)
+        self._content_layout.setSpacing(0)
+        self._content_layout.setAlignment(Qt.AlignTop)
+        scroll.setWidget(self._content)
+
+        # Source card (always present)
+        self._source_card = SourceCard("")
+        self._source_card.source_changed.connect(self._on_commit)
+        self._content_layout.addWidget(self._source_card)
+
+        # Steps container
+        self._steps_widget = QWidget()
+        self._steps_layout = QVBoxLayout(self._steps_widget)
+        self._steps_layout.setContentsMargins(0, 0, 0, 0)
+        self._steps_layout.setSpacing(0)
+        self._steps_layout.setAlignment(Qt.AlignTop)
+        self._content_layout.addWidget(self._steps_widget)
+
+        # Add Step button
+        self._add_btn = QPushButton("+ Add Step")
+        self._add_btn.setObjectName("AddStepButton")
+        self._add_btn.setCursor(Qt.PointingHandCursor)
+        self._add_btn.clicked.connect(self._on_add_step)
+        self._content_layout.addWidget(self._add_btn, alignment=Qt.AlignLeft)
+
+        self._content_layout.addStretch()
+
+        # ---- Initial load ----
+        self._load_from_project()
+
+    # ---- Public API ----
+
+    def refresh(self):
+        """Reload from the project state (e.g. after undo/redo)."""
+        self._load_from_project()
+
+    # ---- Internal: Loading ----
+
+    def _load_from_project(self):
+        """Read the variable's code from KStateManager and populate the editor."""
+        sm = self.project.kproject.state_manager
+        if self.variable_name not in sm.variables:
+            return
+
+        code = sm.variables[self.variable_name].code
+        target, source, step_strs = decompose_variable_code(code)
+        self._source_text = source
+        self._source_card.value = source
+
+        # Build PipelineStep objects
+        self._steps.clear()
+        for s in step_strs:
+            func_name, arg_strs = parse_step_string(s)
+            # Look up parameter names from the function definition
+            param_names, param_defaults = self._lookup_func_params(func_name)
+
+            # Match arg_strs to param_names (skip first = piped input)
+            step = PipelineStep(
+                func_name=func_name,
+                param_names=param_names,
+                param_values=self._match_args(arg_strs, param_names, param_defaults),
+                param_defaults=[param_defaults.get(n) for n in param_names],
+            )
+            self._steps.append(step)
+
+        self._rebuild_step_cards()
+
+    def _lookup_func_params(self, func_name: str) -> Tuple[List[str], dict]:
+        """Look up a function's parameter names (minus the first piped arg) and defaults.
+
+        Returns (param_names_without_first, {name: default_str}).
+        """
+        from kira.knodes.knode import KNode
+
+        obj = self.project.kproject.context.get_object(func_name)
+        if not isinstance(obj, KNode):
+            return [], {}
+
+        # Skip first input (the piped argument)
+        all_names = obj.input_names
+        param_names = all_names[1:] if len(all_names) > 1 else []
+
+        # Default values
+        defaults = {}
+        for k, v in obj.default_inputs.items():
+            if k in param_names:
+                defaults[k] = str(v.value) if hasattr(v, "value") else str(v)
+
+        return param_names, defaults
+
+    @staticmethod
+    def _match_args(
+        arg_strs: List[str],
+        param_names: List[str],
+        param_defaults: dict
+    ) -> List[str]:
+        """Align provided argument strings to parameter names."""
+        values: List[str] = []
+        for i, name in enumerate(param_names):
+            if i < len(arg_strs):
+                values.append(arg_strs[i])
+            elif name in param_defaults:
+                values.append("")  # leave blank to use default
+            else:
+                values.append("")
+        return values
+
+    # ---- Internal: Rebuilding UI ----
+
+    def _rebuild_step_cards(self):
+        """Clear and rebuild all StepCard widgets from self._steps."""
+        # Clear existing cards
+        self._step_cards.clear()
+        while self._steps_layout.count():
+            item = self._steps_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        for i, step in enumerate(self._steps):
+            # Arrow connector
+            arrow = _PipelineArrow()
+            self._steps_layout.addWidget(arrow)
+
+            card = StepCard(step, step_index=i)
+            card.step_changed.connect(self._on_commit)
+            card.step_deleted.connect(lambda idx=i: self._on_delete_step(idx))
+            card.func_name_changed.connect(lambda name, idx=i: self._on_func_name_set(idx, name))
+            self._step_cards.append(card)
+            self._steps_layout.addWidget(card)
+
+    # ---- Internal: User Actions ----
+
+    def _on_add_step(self):
+        """Add a blank step at the end."""
+        step = PipelineStep()
+        self._steps.append(step)
+        self._rebuild_step_cards()
+
+    def _on_delete_step(self, index: int):
+        """Remove step at index and commit."""
+        if 0 <= index < len(self._steps):
+            self._steps.pop(index)
+            self._rebuild_step_cards()
+            self._on_commit()
+
+    def _on_func_name_set(self, index: int, func_name: str):
+        """User entered a function name for a blank step — populate params."""
+        if 0 <= index < len(self._steps):
+            param_names, param_defaults = self._lookup_func_params(func_name)
+            self._steps[index] = PipelineStep(
+                func_name=func_name,
+                param_names=param_names,
+                param_values=[""] * len(param_names),
+                param_defaults=[param_defaults.get(n) for n in param_names],
+            )
+            self._rebuild_step_cards()
+
+    # ---- Internal: Commit ----
+
+    def _on_commit(self):
+        """Recompose code from the editor state, validate, and fire event."""
+        if self._committing:
+            return
+        self._committing = True
+
+        try:
+            source = self._source_card.value
+            if not source:
+                return
+
+            # Gather steps
+            steps_data: List[Tuple[str, List[str]]] = []
+            for step in self._steps:
+                if not step.func_name:
+                    continue  # skip blank steps
+                # Collect non-empty args
+                args = []
+                for val in step.param_values:
+                    args.append(val if val else "")
+                # Strip trailing empty args
+                while args and not args[-1]:
+                    args.pop()
+                steps_data.append((step.func_name, args))
+
+            code = compose_variable_code(self.variable_name, source, steps_data)
+
+            # Validate: try to parse
+            from kira.klanguage.ktokenizer import ktokenize, KTokenType
+            from kira.klanguage.kast import kparse
+
+            tokens = ktokenize(code)
+            clean = [t for t in tokens if t.token_type != KTokenType.WHITESPACE]
+            try:
+                ast = kparse(clean)
+            except SyntaxError as e:
+                logger.warning(f"Parse error — not committing: {e} - code: {code}")
+                return
+
+            # Fire event
+            from kproject.kevent import KEventTypes
+            self.project.process_event(KEventTypes.AddVariable, self.variable_name, code)
+            logger.info(f"Committed: {code}")
+
+        finally:
+            self._committing = False

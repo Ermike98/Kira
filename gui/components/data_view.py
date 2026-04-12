@@ -185,9 +185,9 @@ class ArrayView(QWidget):
 
 class _ArrayTableView(QTableWidget):
     """
-    Subclass of QTableWidget that supports zooming for Numpy arrays.
+    Subclass of QTableWidget that supports zooming for Pandas Series.
     """
-    def __init__(self, array_data: np.ndarray, parent=None):
+    def __init__(self, array_data: pd.Series, parent=None):
         super().__init__(parent)
         self._font_size = 16 # Default px size (medium)
         self.setAlternatingRowColors(True)
@@ -207,7 +207,7 @@ class _ArrayTableView(QTableWidget):
             self.setColumnCount(cols)
             for r in range(rows):
                 for c in range(cols):
-                    self.setItem(r, c, QTableWidgetItem(str(data[r, c])))
+                    self.setItem(r, c, QTableWidgetItem(str(data.iloc[r, c])))
         else:
             self.setRowCount(1)
             self.setColumnCount(1)

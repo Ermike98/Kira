@@ -331,4 +331,141 @@ QScrollBar::handle:vertical:hover {{
     color: {colors.slate_500};
     font-size: {style_system.font_small};
 }}
+
+/* ---- Step Editor (Pipeline Editor) ---- */
+
+#StepEditorPanel {{
+    background-color: {colors.slate_50};
+    border-left: {style_system.border_thin} solid {colors.slate_200};
+}}
+
+#StepEditorHeader {{
+    background-color: {colors.slate_50};
+    border-bottom: {style_system.border_thin} solid {colors.slate_200};
+}}
+
+#StepEditorTitle {{
+    font-size: {style_system.font_medium};
+    font-weight: 700;
+    color: {colors.slate_800};
+    letter-spacing: 0.3px;
+}}
+
+/* Source Card — sky accent to distinguish from steps */
+#SourceCard {{
+    background-color: white;
+    border: {style_system.border_thin} solid {colors.sky_200};
+    border-radius: {style_system.radius_large};
+    border-left: {style_system.border_thick} solid {colors.sky_500};
+}}
+
+#SourceCardTitle {{
+    font-size: {style_system.font_small};
+    font-weight: 700;
+    color: {colors.sky_600};
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+}}
+
+/* Step Card */
+#StepCard {{
+    background-color: white;
+    border: {style_system.border_thin} solid {colors.slate_200};
+    border-radius: {style_system.radius_large};
+}}
+
+#StepCard:hover {{
+    border-color: {colors.slate_300};
+}}
+
+#StepBadge {{
+    font-size: {style_system.font_xsmall};
+    font-weight: 600;
+    color: {colors.slate_400};
+}}
+
+#StepFuncName {{
+    font-size: {style_system.font_small};
+    font-weight: 700;
+    color: {colors.slate_800};
+}}
+
+#StepFuncInput {{
+    font-size: {style_system.font_small};
+    padding: {style_system.spacing_xxsmall} {style_system.spacing_xsmall};
+    border: {style_system.border_thin} solid {colors.slate_200};
+    border-radius: {style_system.radius_medium};
+    background-color: {colors.slate_50};
+}}
+
+#StepFuncInput:focus {{
+    border-color: {colors.sky_400};
+    background-color: white;
+}}
+
+#StepDragHandle {{
+    font-size: {style_system.font_large};
+    color: {colors.slate_300};
+    padding: 0px {style_system.spacing_xxsmall};
+}}
+
+#StepDeleteButton {{
+    background-color: transparent;
+    border: none;
+    border-radius: {style_system.radius_medium};
+    font-size: {style_system.font_medium};
+    font-weight: 700;
+    color: {colors.slate_400};
+    padding: 0px;
+}}
+
+#StepDeleteButton:hover {{
+    background-color: {colors.red_50};
+    color: {colors.red_500};
+}}
+
+/* Step parameter row */
+#StepParamLabel {{
+    font-size: {style_system.font_small};
+    color: {colors.slate_500};
+    font-weight: 500;
+}}
+
+#StepParamInput {{
+    font-size: {style_system.font_small};
+    padding: {style_system.spacing_xsmall} {style_system.spacing_small};
+    border: {style_system.border_thin} solid {colors.slate_200};
+    border-radius: {style_system.radius_medium};
+    background-color: white;
+    color: {colors.slate_800};
+}}
+
+#StepParamInput:focus {{
+    border-color: {colors.sky_400};
+    outline: none;
+}}
+
+/* Add step button */
+#AddStepButton {{
+    background-color: transparent;
+    border: {style_system.border_thin} dashed {colors.slate_300};
+    border-radius: {style_system.radius_large};
+    padding: {style_system.spacing_small} {style_system.spacing_large};
+    color: {colors.slate_500};
+    font-size: {style_system.font_small};
+    font-weight: 600;
+    margin-top: {style_system.spacing_small};
+}}
+
+#AddStepButton:hover {{
+    background-color: {colors.sky_50};
+    border-color: {colors.sky_300};
+    color: {colors.sky_600};
+}}
+
+/* Pipeline arrow connector */
+#PipelineArrow {{
+    font-size: {style_system.font_medium};
+    color: {colors.slate_300};
+}}
 """
