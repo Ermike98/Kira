@@ -32,7 +32,7 @@ k_array_library.register(k_array_len)
     inputs=[("start", K_LITERAL_TYPE), ("stop", K_LITERAL_TYPE), ("step", K_LITERAL_TYPE)],
     outputs=[("y", K_ARRAY_TYPE)],
     name="range",
-    use_values=False,
+    use_values=True,
     use_context=False,
     default_inputs={"step": KLiteral(1, KLiteralType.INTEGER)}
 )
