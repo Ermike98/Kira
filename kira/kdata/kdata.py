@@ -52,6 +52,8 @@ class KData(KObject):
         super().__init__(name=name)
 
         assert value is not None or error is not None, "Either a value or an error must be provided!"
+        assert isinstance(value, KDataValue) or value is None, f"Value must be a KDataValue! Got {type(value)} instead!"
+        assert isinstance(error, KException) or error is None, f"Error must be a KException! Got {type(error)} instead!"
 
         self._value = value
         self._error = error

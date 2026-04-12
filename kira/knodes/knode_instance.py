@@ -69,14 +69,14 @@ class KNodeInstance(KObject):
             else:
                 res = node_input.eval(local_context)
 
-                if isinstance(res, KGenericException):
-                    res = KData(node_name, None, res)
-                
-                # Auto-unpack strategy: inject DataFrame columns into formulas_context
-                if res and isinstance(res.value, KTable):
-                    df = res.value.value
-                    for col in df.columns:
-                        formulas_context.register_object(KData(col, KArray(df[col].to_numpy())))
+            if isinstance(res, KGenericException):
+                res = KData(node_name, None, res)
+            
+            # Auto-unpack strategy: inject DataFrame columns into formulas_context
+            if res and isinstance(res.value, KTable):
+                df = res.value.value
+                for col in df.columns:
+                    formulas_context.register_object(KData(col, KArray(df[col].to_numpy())))
 
             inputs[node_name] = KData(node_name, res.value, res.error)
 
