@@ -1,3 +1,5 @@
+from kira import KLiteralType
+from kira import KData
 from functools import wraps
 from typing import Callable
 
@@ -165,3 +167,5 @@ k_math_library.register(numpy_to_kfunction(
     [("y", K_NP_MATH_TYPE)]
 ))
 
+k_math_library.register(KData("PI", KLiteral(np.pi, KLiteralType.NUMBER)))
+k_math_library.register(KData("E", KLiteral(np.e, KLiteralType.NUMBER)))
