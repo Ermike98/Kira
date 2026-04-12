@@ -13,13 +13,14 @@ class KFormula(KObject):
     This allows pipelines to pass deferred logic where 
     dependencies are resolved locally.
     """
-    def __init__(self, name: str, inner: KObject):
+    def __init__(self, name: str, obj: KObject):
         super().__init__(name)
-        self._inner_object = inner
+        self._obj = obj
+        print(f"KFormula: {name} initialized with {obj}")
 
     @property
     def type(self) -> KTypeInfo:
-        return self._inner_object.type
+        return self._obj.type
 
     def eval(self, context: KContext) -> KObject:
-        return self._inner_object.eval(context)
+        return self._obj.eval(context)

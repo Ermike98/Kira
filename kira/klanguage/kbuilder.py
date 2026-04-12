@@ -54,7 +54,7 @@ def kbuild_expression(expr: AstExpression, target_name: Optional[str]) -> KObjec
     if isinstance(expr, AstFormula):
         inner_obj = kbuild_expression(expr.expression, None)
         inst_name = target_name if target_name is not None else token_hash_name(expr.token, "formula")
-        return KFormula(inner_obj, inst_name)
+        return KFormula(inst_name, inner_obj)
 
     if isinstance(expr, AstArray):
         built_elements = [kbuild_expression(el, None) for el in expr.elements]
