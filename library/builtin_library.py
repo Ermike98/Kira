@@ -44,14 +44,7 @@ from kira.library.library_utils import numpy_to_kfunction, k_compare_wrapper
 
 # Addition 
 
-@kfunction(
-    inputs=[("x1", K_ADD_TYPE), ("x2", K_ADD_TYPE)],
-    outputs=[("y", KAnyTypeInfo())],
-    name="+",
-    use_values=True,
-    use_context=False
-)
-def k_add(val1_obj, val2_obj):
+def _k_add_impl(val1_obj, val2_obj):
     val1 = val1_obj.value
     val2 = val2_obj.value
     # Logic
@@ -78,7 +71,14 @@ def k_add(val1_obj, val2_obj):
             KGenericException(f"Type mismatch: cannot add {type(val1).__name__} and {type(val2).__name__}"))]
 
 
-k_builtin_library.register(k_add)
+k_builtin_library.register(kfunction(
+    inputs=[("x1", K_ADD_TYPE), ("x2", K_ADD_TYPE)], outputs=[("y", KAnyTypeInfo())],
+    name="+", use_values=True, use_context=False
+)(_k_add_impl))
+k_builtin_library.register(kfunction(
+    inputs=[("x1", K_ADD_TYPE), ("x2", K_ADD_TYPE)], outputs=[("y", KAnyTypeInfo())],
+    name="add", use_values=True, use_context=False
+)(_k_add_impl))
 
 # Subtraction
 k_builtin_library.register(numpy_to_kfunction(
@@ -87,17 +87,17 @@ k_builtin_library.register(numpy_to_kfunction(
     [("y", KAnyTypeInfo())],
     name="-"
 ))
+k_builtin_library.register(numpy_to_kfunction(
+    np.subtract,
+    [("x1", K_NP_MATH_TYPE), ("x2", K_NP_MATH_TYPE)],
+    [("y", KAnyTypeInfo())],
+    name="subtract"
+))
 
 
 # Multiplication
-@kfunction(
-    inputs=[("x1", K_MULT_TYPE), ("x2", K_MULT_TYPE)],
-    outputs=[("y", KAnyTypeInfo())],
-    name="*",
-    use_values=True,
-    use_context=False
-)
-def k_multiply(val1_obj, val2_obj):
+
+def _k_multiply_impl(val1_obj, val2_obj):
     val1 = val1_obj.value
     val2 = val2_obj.value
     is_val1_str = isinstance(val1, (str, bytes, np.str_)) or (isinstance(val1, pd.Series) and ptypes.is_string_dtype(val1.dtype))
@@ -134,7 +134,18 @@ def k_multiply(val1_obj, val2_obj):
     return [KLiteral(result)]
 
 
-k_builtin_library.register(k_multiply)
+k_builtin_library.register(
+    kfunction(
+        inputs=[("x1", K_MULT_TYPE), ("x2", K_MULT_TYPE)], outputs=[("y", KAnyTypeInfo())],
+        name="*", use_values=True, use_context=False
+    )(_k_multiply_impl)
+)
+k_builtin_library.register(
+    kfunction(
+        inputs=[("x1", K_MULT_TYPE), ("x2", K_MULT_TYPE)], outputs=[("y", KAnyTypeInfo())],
+        name="multiply", use_values=True, use_context=False
+    )(_k_multiply_impl)
+)
 
 # Division
 k_builtin_library.register(numpy_to_kfunction(
@@ -143,13 +154,25 @@ k_builtin_library.register(numpy_to_kfunction(
     [("y", KAnyTypeInfo())],
     name="/"
 ))
+k_builtin_library.register(numpy_to_kfunction(
+    np.divide,
+    [("x1", K_NP_MATH_TYPE), ("x2", K_NP_MATH_TYPE)],
+    [("y", KAnyTypeInfo())],
+    name="divide"
+))
 
 # Power
 k_builtin_library.register(numpy_to_kfunction(
     np.power,
-    [("x1", K_NP_MATH_TYPE), ("x2", K_NP_MATH_TYPE)],
+    [("base", K_NP_MATH_TYPE), ("exponent", K_NP_MATH_TYPE)],
     [("y", KAnyTypeInfo())],
     name="^"
+))
+k_builtin_library.register(numpy_to_kfunction(
+    np.power,
+    [("base", K_NP_MATH_TYPE), ("exponent", K_NP_MATH_TYPE)],
+    [("y", KAnyTypeInfo())],
+    name="power"
 ))
 
 # Unary Negation
@@ -159,55 +182,97 @@ k_builtin_library.register(numpy_to_kfunction(
     [("y", KAnyTypeInfo())],
     name="unary_-"
 ))
+k_builtin_library.register(numpy_to_kfunction(
+    np.negative,
+    [("x", K_NP_MATH_TYPE)],
+    [("y", KAnyTypeInfo())],
+    name="negative"
+))
 
 # Comparison Operators
 
 # Equals
 k_builtin_library.register(numpy_to_kfunction(
     k_compare_wrapper(np.equal, np.char.equal),
-    [("x1", K_ADD_TYPE), ("x2", K_ADD_TYPE)],
+    [("left", K_ADD_TYPE), ("right", K_ADD_TYPE)],
     [("y", KAnyTypeInfo())],
     name="=="
+))
+k_builtin_library.register(numpy_to_kfunction(
+    k_compare_wrapper(np.equal, np.char.equal),
+    [("left", K_ADD_TYPE), ("right", K_ADD_TYPE)],
+    [("y", KAnyTypeInfo())],
+    name="equals"
 ))
 
 # Not Equals
 k_builtin_library.register(numpy_to_kfunction(
     k_compare_wrapper(np.not_equal, np.char.not_equal),
-    [("x1", K_ADD_TYPE), ("x2", K_ADD_TYPE)],
+    [("left", K_ADD_TYPE), ("right", K_ADD_TYPE)],
     [("y", KAnyTypeInfo())],
     name="!="
+))
+k_builtin_library.register(numpy_to_kfunction(
+    k_compare_wrapper(np.not_equal, np.char.not_equal),
+    [("left", K_ADD_TYPE), ("right", K_ADD_TYPE)],
+    [("y", KAnyTypeInfo())],
+    name="not_equals"
 ))
 
 # Greater Than
 k_builtin_library.register(numpy_to_kfunction(
     k_compare_wrapper(np.greater, np.char.greater),
-    [("x1", K_ADD_TYPE), ("x2", K_ADD_TYPE)],
+    [("left", K_ADD_TYPE), ("right", K_ADD_TYPE)],
     [("y", KAnyTypeInfo())],
     name=">"
+))
+k_builtin_library.register(numpy_to_kfunction(
+    k_compare_wrapper(np.greater, np.char.greater),
+    [("left", K_ADD_TYPE), ("right", K_ADD_TYPE)],
+    [("y", KAnyTypeInfo())],
+    name="greater"
 ))
 
 # Less Than
 k_builtin_library.register(numpy_to_kfunction(
     k_compare_wrapper(np.less, np.char.less),
-    [("x1", K_ADD_TYPE), ("x2", K_ADD_TYPE)],
+    [("left", K_ADD_TYPE), ("right", K_ADD_TYPE)],
     [("y", KAnyTypeInfo())],
     name="<"
+))
+k_builtin_library.register(numpy_to_kfunction(
+    k_compare_wrapper(np.less, np.char.less),
+    [("left", K_ADD_TYPE), ("right", K_ADD_TYPE)],
+    [("y", KAnyTypeInfo())],
+    name="less"
 ))
 
 # Greater Than or Equal
 k_builtin_library.register(numpy_to_kfunction(
     k_compare_wrapper(np.greater_equal, np.char.greater_equal),
-    [("x1", K_ADD_TYPE), ("x2", K_ADD_TYPE)],
+    [("left", K_ADD_TYPE), ("right", K_ADD_TYPE)],
     [("y", KAnyTypeInfo())],
     name=">="
+))
+k_builtin_library.register(numpy_to_kfunction(
+    k_compare_wrapper(np.greater_equal, np.char.greater_equal),
+    [("left", K_ADD_TYPE), ("right", K_ADD_TYPE)],
+    [("y", KAnyTypeInfo())],
+    name="greater_equal"
 ))
 
 # Less Than or Equal
 k_builtin_library.register(numpy_to_kfunction(
     k_compare_wrapper(np.less_equal, np.char.less_equal),
-    [("x1", K_ADD_TYPE), ("x2", K_ADD_TYPE)],
+    [("left", K_ADD_TYPE), ("right", K_ADD_TYPE)],
     [("y", KAnyTypeInfo())],
     name="<="
+))
+k_builtin_library.register(numpy_to_kfunction(
+    k_compare_wrapper(np.less_equal, np.char.less_equal),
+    [("left", K_ADD_TYPE), ("right", K_ADD_TYPE)],
+    [("y", KAnyTypeInfo())],
+    name="less_equal"
 ))
 
 # Logical Operators
@@ -219,11 +284,17 @@ k_builtin_library.register(numpy_to_kfunction(
     [("y", KAnyTypeInfo())],
     name="unary_!"
 ))
+k_builtin_library.register(numpy_to_kfunction(
+    np.logical_not,
+    [("x", K_NP_MATH_TYPE)],
+    [("y", KAnyTypeInfo())],
+    name="not"
+))
 
 # Logical And
 k_builtin_library.register(numpy_to_kfunction(
     np.logical_and,
-    [("x1", K_NP_MATH_TYPE), ("x2", K_NP_MATH_TYPE)],
+    [("left", K_NP_MATH_TYPE), ("right", K_NP_MATH_TYPE)],
     [("y", KAnyTypeInfo())],
     name="and"
 ))
@@ -231,7 +302,7 @@ k_builtin_library.register(numpy_to_kfunction(
 # Logical Or
 k_builtin_library.register(numpy_to_kfunction(
     np.logical_or,
-    [("x1", K_NP_MATH_TYPE), ("x2", K_NP_MATH_TYPE)],
+    [("left", K_NP_MATH_TYPE), ("right", K_NP_MATH_TYPE)],
     [("y", KAnyTypeInfo())],
     name="or"
 ))
