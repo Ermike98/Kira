@@ -48,7 +48,11 @@ class KNodeInstance(KObject):
         # Resolve node if not already resolved
         if self._node is None:
             obj = context.get_object(self._target_name)
-            assert isinstance(obj, KNode), f"Object '{self._target_name}' is not a KNode"
+            if not isinstance(obj, KNode):
+                result = KData(self.name, None, KGenericException(f"Object '{self._target_name}' is not a KNode"))
+                context.register_object(result)
+                return result
+
             self._node = obj
             # Deferred validation
             min_expected = len(self._node.input_names) - len(self._node.default_inputs)
