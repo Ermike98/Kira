@@ -59,19 +59,19 @@ k_array_library.register(k_array_sort)
 @kfunction(
     inputs=[("x", K_ARRAY_TYPE), ("ascending", K_BOOLEAN_TYPE)],
     outputs=[("y", K_ARRAY_TYPE)],
-    name="argsort",
+    name="sort_index",
     use_values=True,
     use_context=False,
     default_inputs={"ascending": KLiteral(True, KLiteralType.BOOLEAN)}
 )
-def k_array_argsort(x_obj: KArray, ascending_: KLiteral):
+def k_array_sort_index(x_obj: KArray, ascending_: KLiteral):
     idx = x_obj.value.argsort()
     if ascending_.value:
         return [KArray(idx, K_ARRAY_INTEGER_TYPE)]
 
     return [KArray(len(x_obj.value) - 1 - idx, K_ARRAY_INTEGER_TYPE)]
 
-k_array_library.register(k_array_argsort)
+k_array_library.register(k_array_sort_index)
 
 # reverse(x: array) -> array
 @kfunction(

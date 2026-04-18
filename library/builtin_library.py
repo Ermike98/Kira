@@ -39,6 +39,11 @@ k_builtin_library = KLibrary("Builtin")
 
 from kira.library.library_utils import numpy_to_kfunction, k_compare_wrapper
 
+# Identity Function
+k_builtin_library.register(kfunction(
+    inputs=[("x", KAnyTypeInfo())], outputs=[("y", KAnyTypeInfo())],
+    name="identity", use_values=True, use_context=False
+)(lambda x: [x]))
 
 # Arithmetic Functions
 
@@ -308,7 +313,7 @@ k_builtin_library.register(numpy_to_kfunction(
 ))
 
 # Get Item
-
+# TODO Fix getitem: define clear behavior and implementation
 @kfunction(
     inputs=[("x", KUnionTypeInfo([K_ARRAY_TYPE, KTableTypeInfo()])), ("indices", K_ARRAY_TYPE)],
     outputs=[("y", KAnyTypeInfo())],
