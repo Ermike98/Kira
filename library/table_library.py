@@ -1,7 +1,7 @@
 import pandas as pd
 
 from kira.kdata.ktable import KTable, K_TABLE_TYPE
-from kira.kdata.karray import KArray, K_ARRAY_STRING_TYPE, K_ARRAY_TYPE, K_ARRAY_BOOLEAN_TYPE
+from kira.kdata.karray import KArray, K_ARRAY_STRING_TYPE, K_ARRAY_TYPE, K_ARRAY_BOOLEAN_TYPE, K_ARRAY_INTEGER_TYPE
 from kira.kdata.kliteral import KLiteral, KLiteralType, K_INTEGER_TYPE, K_STRING_TYPE, K_BOOLEAN_TYPE
 from kira.knodes.kfunction import kfunction
 from kira.ktypeinfo.union_type import KUnionTypeInfo
@@ -10,6 +10,8 @@ from kira.kexpections.kgenericexception import KGenericException
 from kira.library.node_library import KLibrary
 
 k_table_library = KLibrary("Table")
+
+# TODO - Add checks for hstack, vstack, select
 
 # Table Functions
 
@@ -154,6 +156,7 @@ k_table_library.register(k_table_remove_columns)
     use_context=False
 )
 def k_table_rename_column(df_obj: KTable, old_name_obj: KLiteral, new_name_obj: KLiteral):
+    # TODO: Add error handling for when old column name does not exist, when new column name already exists, and when new column name doesn't have a valid syntax 
     new_df = df_obj.value.rename(columns={old_name_obj.value: new_name_obj.value})
     return [KTable(new_df)]
 
@@ -170,7 +173,8 @@ k_table_library.register(k_table_rename_column)
     use_context=False
 )
 def k_table_transpose(df_obj: KTable):
-    return [KTable(df_obj.value.T)]
+    # TODO: Make sure that the column names are strings 
+    return [KTable(df_obj.value.T.reset_index())]
 
 k_table_library.register(k_table_transpose)
 
@@ -285,23 +289,21 @@ k_table_library.register(k_table_concat)
 
 # rolling(df, window, columns: str | array[str], functions: str | array[str]) -> table # DO NOT IMPLEMENT
 
-# sort_table(df, by: str | array[str], ascending: bool = True)
+# sort_by(df, by: str | array[str], ascending: bool = True)
 @kfunction(
     inputs=[("df", K_TABLE_TYPE), ("by", KUnionTypeInfo([K_STRING_TYPE, K_ARRAY_STRING_TYPE])), ("ascending", K_BOOLEAN_TYPE)],
     outputs=[("y", K_TABLE_TYPE)],
-    name="sort_table",
+    name="sort_by",
     use_values=True,
     use_context=False,
     default_inputs={"ascending": KLiteral(True, KLiteralType.BOOLEAN)}
 )
-def k_table_sort_table(df_obj: KTable, by_obj, ascending_obj: KLiteral):
-    print(f"sort_table: {by_obj}, {ascending_obj}")
+def k_table_sort_by(df_obj: KTable, by_obj, ascending_obj: KLiteral):
     by_cols = by_obj.value.tolist() if isinstance(by_obj, KArray) else by_obj.value
     ascending = bool(ascending_obj.value)
-    print(f"sort_table: {by_cols}, {ascending}")
     return [KTable(df_obj.value.sort_values(by=by_cols, ascending=ascending))]
 
-k_table_library.register(k_table_sort_table)
+k_table_library.register(k_table_sort_by)
 
 # Table and Array Functions
 
@@ -316,12 +318,84 @@ k_table_library.register(k_table_sort_table)
     use_context=False
 )
 def k_table_filter(x_obj, condition_obj):
+    if len(x_obj.value) != len(condition_obj.value):
+        obj_type_name = ("table"
+                         if isinstance(x_obj, KTable) else
+                         "array")
+        return [KErrorValue(KGenericException(f"The {obj_type_name} and the condition must have the same length, got {len(x_obj.value)} and {len(condition_obj.value)} instead!"))]
+
     if isinstance(x_obj, KTable):
         return [KTable(x_obj.value[condition_obj.value])]
     return [KArray(x_obj.value[condition_obj.value])]
 
 k_table_library.register(k_table_filter)
 
+# filter_columns(x: table, condition: array[bool]) -> table | array
+@kfunction(
+    inputs=[("x", K_TABLE_TYPE), ("condition", K_ARRAY_BOOLEAN_TYPE)],
+    outputs=[("y", K_TABLE_TYPE)],
+    name="filter_columns",
+    use_values=True,
+    use_context=False
+)
+def k_table_filter_columns(x_obj, condition_obj):
+    if len(x_obj.value) != len(condition_obj.value):
+        return [KErrorValue(KGenericException(f"The table number of columns must match the condition length, got {len(x_obj.value)} and {len(condition_obj.value)} instead!"))]
+
+    return [KTable(x_obj.value.loc[:, condition_obj.value])]
+
+k_table_library.register(k_table_filter_columns)
+
+# slice(x: table | array, index: array[int]) -> table | array
+@kfunction(
+    inputs=[("x", KUnionTypeInfo([K_TABLE_TYPE, K_ARRAY_TYPE])), ("index", K_ARRAY_INTEGER_TYPE)],
+    outputs=[("y", KUnionTypeInfo([K_TABLE_TYPE, K_ARRAY_TYPE]))],
+    name="slice",
+    use_values=True,
+    use_context=False
+)
+def k_slice(x_obj, index_obj):
+    max_index = index_obj.value.max()
+    min_index = index_obj.value.min()
+    obj_type_name = ("table"
+                     if isinstance(x_obj, KTable) else
+                     "array")
+    if max_index > len(x_obj.value):
+        return [KErrorValue(KGenericException(
+            f"Maximum index exceeds the length of the {obj_type_name}, indices must be between 0 and {len(x_obj.value)-1}, got {max_index} instead!"))]
+    if min_index < 0:
+        return [KErrorValue(KGenericException(
+            f"Minimum index below 0, indices must be between 0 and {len(x_obj.value)-1}, got {min_index} instead!"))]
+
+    if isinstance(x_obj, KTable):
+        return [KTable(x_obj.value.iloc[index_obj.value])]
+    return [KArray(x_obj.value.iloc[index_obj.value])]
+
+k_table_library.register(k_slice)
+
+# slice_columns(x: table, condition: array[bool]) -> table | array
+@kfunction(
+    inputs=[("x", K_TABLE_TYPE), ("condition", K_ARRAY_BOOLEAN_TYPE)],
+    outputs=[("y", K_TABLE_TYPE)],
+    name="slice_columns",
+    use_values=True,
+    use_context=False
+)
+def k_slice_columns(x_obj, index_obj):
+    max_index = index_obj.value.max()
+    min_index = index_obj.value.min()
+
+    if max_index > len(x_obj.value):
+        return [KErrorValue(KGenericException(
+            f"Maximum index exceeds the table number of columns, indices must be between 0 and {len(x_obj.value.columns) - 1}, got {max_index} instead!"))]
+    if min_index < 0:
+        return [KErrorValue(KGenericException(
+            f"Minimum index below 0, indices must be between 0 and {len(x_obj.value.columns) - 1}, got {min_index} instead!"))]
+
+    return [KTable(x_obj.value.iloc[:, index_obj.value])]
+
+
+k_table_library.register(k_slice_columns)
 
 # String Functions - both string literals and arrays
 
