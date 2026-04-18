@@ -15,6 +15,8 @@ event through ``QTProject``.
 
 from __future__ import annotations
 
+import ast
+import re
 import logging
 from dataclasses import dataclass, field
 from typing import Optional, List, Tuple, TYPE_CHECKING
@@ -23,10 +25,11 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QFrame, QScrollArea, QPushButton,
     QListWidget, QListWidgetItem, QAbstractItemView,
-    QSizePolicy
+    QSizePolicy, QCompleter, QListView
 )
-from PySide6.QtCore import Qt, Signal, QSize, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, Signal, QSize, QTimer, QSortFilterProxyModel, QModelIndex
+from PySide6.QtGui import QFont, QStandardItemModel, QStandardItem
+from gui.components.sidebar import get_icon_name_for_type, type_icon
 
 from gui.utils import colors
 from gui import style_system
@@ -35,6 +38,119 @@ if TYPE_CHECKING:
     from gui.qt_project import QTProject
 
 logger = logging.getLogger("kira.step_editor")
+
+# ---------------------------------------------------------------------------#
+#  0. Autocomplete Utilities                                                  #
+# ---------------------------------------------------------------------------#
+
+class SuggestionFilterModel(QSortFilterProxyModel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._prefix = ""
+        self.setSortCaseSensitivity(Qt.CaseInsensitive)
+        self.setDynamicSortFilter(True)
+
+    def set_search_prefix(self, prefix: str):
+        self._prefix = prefix.lower()
+        self.invalidate()
+        self.sort(0)
+
+    def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:
+        left_text = self.sourceModel().data(left, Qt.DisplayRole) or ""
+        right_text = self.sourceModel().data(right, Qt.DisplayRole) or ""
+        left_type = self.sourceModel().data(left, Qt.UserRole + 1) or 2
+        right_type = self.sourceModel().data(right, Qt.UserRole + 1) or 2
+
+        left_starts = left_text.lower().startswith(self._prefix) if self._prefix else False
+        right_starts = right_text.lower().startswith(self._prefix) if self._prefix else False
+        
+        if left_starts != right_starts:
+            return left_starts
+
+        if left_type != right_type:
+            return left_type < right_type
+
+        return left_text.lower() < right_text.lower()
+
+
+class WordCompleter(QCompleter):
+    def __init__(self, model, parent=None):
+        super().__init__(model, parent)
+        self.setCompletionRole(Qt.DisplayRole)
+        self.setFilterMode(Qt.MatchContains)
+        self.setCaseSensitivity(Qt.CaseInsensitive)
+        self.setModelSorting(QCompleter.UnsortedModel)
+        self.setWidget(parent)
+
+        self._current_text = ""
+        self._cursor_pos = 0
+        self._word_start = 0
+        self._word_len = 0
+        self.target_cursor_pos = -1
+
+    def update_context(self, text: str, cursor_pos: int):
+        self._current_text = text
+        self._cursor_pos = cursor_pos
+        
+        left_text = text[:cursor_pos]
+        match = re.search(r'[a-zA-Z_]\w*$', left_text)
+        word = match.group(0) if match else ""
+        if match:
+            self._word_start = match.start()
+            self._word_len = len(word)
+        else:
+            self._word_start = cursor_pos
+            self._word_len = 0
+
+    def splitPath(self, path: str):
+        left_text = path[:self._cursor_pos]
+        match = re.search(r'[a-zA-Z_]\w*$', left_text)
+        word = match.group(0) if match else ""
+        
+        proxy = self.model()
+        if isinstance(proxy, SuggestionFilterModel):
+            proxy.set_search_prefix(word)
+            
+        return [word]
+
+    def pathFromIndex(self, index: QModelIndex) -> str:
+        completion_val = self.model().data(index, Qt.UserRole)
+        if not completion_val:
+            completion_val = self.model().data(index, Qt.DisplayRole)
+            
+        left = self._current_text[:self._word_start]
+        right = self._current_text[self._word_start + self._word_len:]
+        
+        self.target_cursor_pos = self._word_start + len(completion_val)
+        if completion_val.endswith("()"):  # Specifically set cursor between parens
+            self.target_cursor_pos -= 1
+            
+        return left + completion_val + right
+
+
+def attach_word_completer(line_edit: QLineEdit, source_model: QStandardItemModel):
+    proxy = SuggestionFilterModel(line_edit)
+    proxy.setSourceModel(source_model)
+    proxy.sort(0)
+    
+    completer = WordCompleter(proxy, line_edit)
+    popup = QListView()
+    popup.setObjectName("AutocompletePopup")
+    completer.setPopup(popup)
+    line_edit.setCompleter(completer)
+    
+    def on_text_edited(text):
+        completer.update_context(text, line_edit.cursorPosition())
+        completer.setCompletionPrefix(text)
+        
+    line_edit.textEdited.connect(on_text_edited)
+    
+    def on_activated(text):
+        target = getattr(completer, "target_cursor_pos", -1)
+        if target >= 0:
+            QTimer.singleShot(0, lambda: line_edit.setCursorPosition(target))
+            
+    completer.activated.connect(on_activated)
 
 
 # ---------------------------------------------------------------------------#
@@ -271,6 +387,10 @@ class SourceCard(QFrame):
         self.input.editingFinished.connect(self.source_changed.emit)
         layout.addWidget(self.input)
 
+    def set_completer_model(self, model: QStandardItemModel):
+        if not self.input.completer():
+            attach_word_completer(self.input, model)
+
     @property
     def value(self) -> str:
         return self.input.text().strip()
@@ -297,6 +417,8 @@ class StepCard(QFrame):
         self._step = step
         self._step_index = step_index
         self._param_inputs: List[QLineEdit] = []
+        self._func_model: Optional[QStandardItemModel] = None
+        self._mixed_model: Optional[QStandardItemModel] = None
 
         self._main_layout = QVBoxLayout(self)
         self._main_layout.setContentsMargins(12, 10, 12, 10)
@@ -385,6 +507,10 @@ class StepCard(QFrame):
             self._param_inputs.append(inp)
             self._params_layout.addLayout(row)
 
+        # Re-apply model to new param inputs if available
+        if self._mixed_model:
+            self.set_models(self._func_model, self._mixed_model)
+
     def _on_func_name_entered(self):
         """User typed a function name in the blank input."""
         if self._func_input:
@@ -418,6 +544,18 @@ class StepCard(QFrame):
             header_layout.insertWidget(2, self._func_label)
 
         self._build_param_inputs()
+
+    def set_models(self, func_model: QStandardItemModel, mixed_model: QStandardItemModel):
+        self._func_model = func_model
+        self._mixed_model = mixed_model
+
+        if self._func_input:
+            if not self._func_input.completer():
+                attach_word_completer(self._func_input, func_model)
+
+        for inp in self._param_inputs:
+            if not inp.completer():
+                attach_word_completer(inp, mixed_model)
 
     @property
     def step(self) -> PipelineStep:
@@ -464,6 +602,9 @@ class StepEditorPanel(QWidget):
         self._steps: List[PipelineStep] = []
         self._step_cards: List[StepCard] = []
         self._committing = False  # re-entrance guard
+        self._context_state: dict = {}
+        self._func_model = QStandardItemModel()
+        self._mixed_model = QStandardItemModel()
 
         # ---- Layout ----
         outer = QVBoxLayout(self)
@@ -517,6 +658,8 @@ class StepEditorPanel(QWidget):
         self._content_layout.addStretch()
 
         # ---- Initial load ----
+        self.project.history_updated.connect(self._refresh_autocomplete_cache)
+        self._refresh_autocomplete_cache()
         self._load_from_project()
 
     # ---- Public API ----
@@ -524,6 +667,80 @@ class StepEditorPanel(QWidget):
     def refresh(self):
         """Reload from the project state (e.g. after undo/redo)."""
         self._load_from_project()
+
+    def _refresh_autocomplete_cache(self):
+        """Update the completer models when the history/context changes."""
+        self._context_state = self.project.get_context_state()
+
+        self._func_model.clear()
+        self._mixed_model.clear()
+
+        # Combine nodes + library for function list
+        func_objects = self._context_state.get("node", []) + self._context_state.get("library", [])
+        
+        from kira.knodes.knode import KNode
+        
+        func_items = []
+        for obj in func_objects:
+            if not re.match(r'^[a-zA-Z_]\w*$', obj.name):
+                continue
+                
+            display_name = obj.name
+            insert_val = f"{obj.name}()"
+            
+            if isinstance(obj, KNode) and hasattr(obj, "input_names"):
+                if obj.input_names:
+                    display_name = f"{obj.name}({', '.join(obj.input_names)})"
+
+            item = QStandardItem(display_name)
+            item.setData(obj.name, Qt.UserRole)  # Keep plain name for func_input
+            item.setData(2, Qt.UserRole + 1) # Priority 2 for functions
+            
+            icon_name = get_icon_name_for_type(obj.type)
+            if icon_name == "database.svg":
+                icon_name = "code.svg"
+            item.setIcon(type_icon(icon_name))
+            func_items.append(item)
+            
+            # Also append to mixed model
+            item_copy = QStandardItem(display_name)
+            item_copy.setData(insert_val, Qt.UserRole)
+            item_copy.setData(2, Qt.UserRole + 1)
+            item_copy.setIcon(type_icon(icon_name))
+            self._mixed_model.appendRow(item_copy)
+
+        for item in sorted(func_items, key=lambda i: i.text()):
+            self._func_model.appendRow(item)
+
+        # Add data variables to mixed model
+        var_items = []
+        for obj in self._context_state.get("data", []):
+            item = QStandardItem(obj.name)
+            item.setData(obj.name, Qt.UserRole)
+            item.setData(1, Qt.UserRole + 1) # Priority 1 for data
+            icon_name = get_icon_name_for_type(obj.type)
+            item.setIcon(type_icon(icon_name))
+            var_items.append(item)
+            
+        # Add constants
+        for const_val in ["true", "false"]:
+            item = QStandardItem(const_val)
+            item.setData(const_val, Qt.UserRole)
+            item.setData(1, Qt.UserRole + 1)
+            item.setIcon(type_icon("check.svg"))
+            var_items.append(item)
+
+        for item in sorted(var_items, key=lambda i: i.text()):
+            self._mixed_model.appendRow(item)
+
+        # Apply to live widgets
+        if hasattr(self, "_source_card") and hasattr(self._source_card, "set_completer_model"):
+            self._source_card.set_completer_model(self._mixed_model)
+        
+        if hasattr(self, "_step_cards"):
+            for card in self._step_cards:
+                if hasattr(card, "set_models"):
+                    card.set_models(self._func_model, self._mixed_model)
 
     # ---- Internal: Loading ----
 
@@ -616,6 +833,7 @@ class StepEditorPanel(QWidget):
             card.step_changed.connect(self._on_commit)
             card.step_deleted.connect(lambda idx=i: self._on_delete_step(idx))
             card.func_name_changed.connect(lambda name, idx=i: self._on_func_name_set(idx, name))
+            card.set_models(self._func_model, self._mixed_model)
             self._step_cards.append(card)
             self._steps_layout.addWidget(card)
 

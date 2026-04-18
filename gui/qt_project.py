@@ -108,6 +108,10 @@ class QTProject(QObject):
         """Thread-safe retrieval of a variable value from context."""
         return self.kproject.get_value(name)
 
+    def get_context_state(self) -> dict:
+        """Returns the full state of the KContext."""
+        return self.kproject.get_context_state()
+
     def _poll_status(self):
         """
         Polls the background evaluator for status changes.

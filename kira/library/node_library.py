@@ -1,7 +1,9 @@
-from kira.core.kcontext import KContext
+from typing import TYPE_CHECKING
 from kira.core.kobject import KObject, KTypeInfo
 from kira.ktypeinfo.no_type import KNoTypeInfo
 
+if TYPE_CHECKING:
+    from kira.core.kcontext import KContext
 
 class KLibrary(KObject):
     def __init__(self, name: str, objs: list[KObject] = None):
@@ -20,7 +22,7 @@ class KLibrary(KObject):
     def type(self) -> KTypeInfo:
         return KNoTypeInfo()
 
-    def eval(self, context: KContext) -> KObject:
+    def eval(self, context: 'KContext') -> KObject:
         print(f"Loading library '{self.name}'")
         context.register_object(self)
         for obj in self._library.values():

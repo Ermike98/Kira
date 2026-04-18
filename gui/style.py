@@ -468,4 +468,26 @@ QScrollBar::handle:vertical:hover {{
     font-size: {style_system.font_medium};
     color: {colors.slate_300};
 }}
+
+/* Autocomplete Popup */
+QListView#AutocompletePopup {{
+    background-color: white;
+    border: {style_system.border_thin} solid {colors.slate_200};
+    border-radius: {style_system.radius_medium};
+    outline: none;
+    font-size: {style_system.font_small};
+    padding: {style_system.spacing_xxsmall};
+}}
+
+QListView#AutocompletePopup::item {{
+    padding: {style_system.spacing_xsmall} {style_system.spacing_small};
+    border-radius: {style_system.radius_small};
+    color: {colors.slate_800};
+}}
+
+QListView#AutocompletePopup::item:hover,
+QListView#AutocompletePopup::item:selected {{
+    background-color: {colors.sky_50};
+    color: {colors.sky_700};
+}}
 """

@@ -127,6 +127,10 @@ class KProject:
         """Returns the list of all registered data names."""
         return sorted(self.state_manager.data_names)
 
+    def get_context_state(self) -> dict:
+        """Returns the full state of the KContext."""
+        return self.context.get_context_state()
+
     # Undo/Redo/Restore logic
     def undo(self):
         """Moves back one event in history."""
