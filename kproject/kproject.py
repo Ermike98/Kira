@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 from kira.core.kcontext import KContext
 from kproject.kstate_manager import KStateManager
 from kproject.kevaluator import KEvaluator
+from kproject.kstatus_bus import KStatusBus
 from kproject.kevent import KEventTypes
 from kira.core.kobject import KObject
 from library import load_libraries
@@ -29,7 +30,8 @@ class KProject:
         self.context = KContext()
         load_libraries(self.context)
         self.state_manager = KStateManager()
-        self.evaluator = KEvaluator(self.context, self.state_manager)
+        self.status_bus = KStatusBus()
+        self.evaluator = KEvaluator(self.context, self.state_manager, self.status_bus)
         
         # State Versioning and History
         self._state_version: str = ""
@@ -49,10 +51,11 @@ class KProject:
             
         # Reset State
         self.evaluator.stop()
+        self.status_bus.clear_statuses()
         self.context = KContext()
         load_libraries(self.context)
         self.state_manager = KStateManager()
-        self.evaluator = KEvaluator(self.context, self.state_manager)
+        self.evaluator = KEvaluator(self.context, self.state_manager, self.status_bus)
         
         self._state_version = ""
         self._current_index = 0
@@ -115,10 +118,10 @@ class KProject:
 
     # UI Pass-through APIs
     def get_all_statuses(self) -> Dict[str, KVariableStatus]:
-        return self.evaluator.get_all_statuses()
+        return self.status_bus.get_all_statuses()
 
     def get_status(self, name: str) -> KVariableStatus:
-        return self.evaluator.get_status(name)
+        return self.status_bus.get_status(name)
 
     def get_value(self, name: str) -> KObject:
         return self.context.get_object(name)

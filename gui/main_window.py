@@ -128,7 +128,9 @@ class MainWindow(QMainWindow):
     def _connect_signals(self):
         self.activity_bar.view_changed.connect(self._on_view_changed)
         self.sidebar.element_selected.connect(self._open_element)
+        self.sidebar.add_requested.connect(self._on_add_requested)
         self.project.error_occurred.connect(self.bottom_panel.log_error)
+        self.project.status_changed.connect(self._update_tab_icons)
 
     # ------------------------------------------------------------------
     # Slots
@@ -140,6 +142,15 @@ class MainWindow(QMainWindow):
         else:
             self.sidebar.setVisible(True)
             self.sidebar.set_view(view_id)
+
+    def _on_add_requested(self, item_type: str):
+        if item_type in ("Variable", "Workflow"):
+            view_id = "Data" if item_type == "Variable" else "Workflows"
+            if self.sidebar.current_view != view_id:
+                self.sidebar.set_view(view_id)
+            if not self.sidebar.isVisible():
+                self.sidebar.setVisible(True)
+            self.sidebar.show_inline_input(item_type)
 
     def _open_element(self, type: str, name: str):
         from gui.components.sidebar import get_icon_name_for_type, type_icon
@@ -186,6 +197,26 @@ class MainWindow(QMainWindow):
         widget = self.content_tabs.widget(index)
         self.content_tabs.removeTab(index)
         widget.deleteLater()
+
+    def _update_tab_icons(self, statuses: dict):
+        """Reactively updates icons for open tabs based on their evaluation status/type."""
+        from gui.components.sidebar import get_icon_name_for_type, type_icon
+        from kira.kdata.kdata import KData as _KData
+
+        for i in range(self.content_tabs.count()):
+            name = self.content_tabs.tabText(i)
+            if name in statuses:
+                status = statuses[name]
+                # We only try to update the icon if the variable is READY
+                if str(status.value) == "READY":
+                    kdata = self.project.get_value(name)
+                    if isinstance(kdata, _KData) and kdata.value is not None:
+                        icon_name = get_icon_name_for_type(kdata.type)
+                        # Only update if it's a real specialized icon
+                        if icon_name != "database.svg":
+                            self.content_tabs.setTabIcon(i, type_icon(icon_name))
+                elif str(status.value) == "ERROR":
+                    self.content_tabs.setTabIcon(i, type_icon("alert-triangle.svg"))
 
 
 # ---------------------------------------------------------------------------

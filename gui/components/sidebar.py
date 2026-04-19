@@ -1,9 +1,9 @@
 from typing import Dict, Any, List, Optional
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QListWidget,
-    QListWidgetItem, QHBoxLayout, QFrame
+    QListWidgetItem, QHBoxLayout, QFrame, QLineEdit
 )
-from PySide6.QtCore import Qt, Signal, QSize, QTimer
+from PySide6.QtCore import Qt, Signal, QSize, QObject, QEvent
 from PySide6.QtGui import QIcon
 
 from gui.qt_project import QTProject
@@ -117,7 +117,7 @@ class SidebarItemWidget(QWidget):
 
 class _SectionHeader(QWidget):
     """Subtle sub-section separator: thin rule + title."""
-    def __init__(self, title: str, parent=None):
+    def __init__(self, title: str, add_callback=None, parent=None):
         super().__init__(parent)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(
@@ -136,6 +136,26 @@ class _SectionHeader(QWidget):
         rule.setFrameShape(QFrame.HLine)
         rule.setObjectName("SidebarSectionRule")
         layout.addWidget(rule)
+        
+        if add_callback:
+            from PySide6.QtWidgets import QPushButton
+            btn = QPushButton()
+            btn.setFixedSize(18, 18)
+            btn.setCursor(Qt.PointingHandCursor)
+            # Avoid global button styles interfering
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: transparent;
+                    border: none;
+                }}
+                QPushButton:hover {{
+                    background: {colors.action_selected};
+                    border-radius: 4px;
+                }}
+            """)
+            btn.setIcon(type_icon("plus.svg"))
+            btn.clicked.connect(add_callback)
+            layout.addWidget(btn)
 
 
 class Sidebar(QWidget):
@@ -144,6 +164,7 @@ class Sidebar(QWidget):
     Layout: [vertical border | content]
     """
     element_selected = Signal(str, str)  # (type, name)
+    add_requested = Signal(str)          # item_type
 
     def __init__(self, project: QTProject, parent=None):
         super().__init__(parent)
@@ -158,11 +179,6 @@ class Sidebar(QWidget):
         self._setup_ui()
         self._connect_signals()
         
-        # Adaptive polling timer
-        self._poll_timer = QTimer(self)
-        self._poll_timer.timeout.connect(self._check_version)
-        self._poll_timer.start(1000) # Start with 1s
-
         self.refresh()
 
     def _setup_ui(self):
@@ -205,29 +221,36 @@ class Sidebar(QWidget):
         self.refresh()
 
     def refresh(self):
-        self.list_widget.clear()
-        self._item_widgets.clear()
-        self._last_version = self.project.state_version
+        self.list_widget.blockSignals(True)
+        try:
+            self.list_widget.clear()
+            self._item_widgets.clear()
+            self._last_version = self.project.state_version
 
-        sm = self.project.kproject.state_manager
+            sm = self.project.kproject.state_manager
 
-        if self.current_view == "Data":
-            self._populate_section("VARIABLES", sorted(sm.variables.keys()), "Variable")
-            self._populate_section("STATIC DATA", self.project.kproject.get_data_names(), "Data")
-        elif self.current_view == "Workflows":
-            self._populate_section("USER WORKFLOWS", sorted(sm.workflows.keys()), "Workflow")
+            if self.current_view == "Data":
+                self._populate_section("VARIABLES", sorted(sm.variables.keys()), "Variable", lambda: self.add_requested.emit("Variable"))
+                self._populate_section("STATIC DATA", self.project.kproject.get_data_names(), "Data")
+            elif self.current_view == "Workflows":
+                self._populate_section("USER WORKFLOWS", sorted(sm.workflows.keys()), "Workflow", lambda: self.add_requested.emit("Workflow"))
 
-        self._update_statuses(self.project.kproject.get_all_statuses())
+            self._update_statuses(self.project.kproject.get_all_statuses())
+        finally:
+            self.list_widget.blockSignals(False)
 
-    def _populate_section(self, title: str, names: List[str], item_type: str):
-        if not names:
-            return
-
+    def _populate_section(self, title: str, names: List[str], item_type: str, add_callback=None):
+        # Always create the header even if there are no items
         header_item = QListWidgetItem()
         header_item.setFlags(Qt.NoItemFlags)
         header_item.setSizeHint(QSize(0, 30))
+        header_item.setData(Qt.UserRole, "Header")
+        header_item.setData(Qt.UserRole + 1, item_type)
         self.list_widget.addItem(header_item)
-        self.list_widget.setItemWidget(header_item, _SectionHeader(title))
+        self.list_widget.setItemWidget(header_item, _SectionHeader(title, add_callback))
+        
+        if not names:
+            return
 
         for name in names:
             item = QListWidgetItem()
@@ -255,26 +278,6 @@ class Sidebar(QWidget):
             self.list_widget.setItemWidget(item, widget)
             self._item_widgets[name] = widget
 
-    def _check_version(self):
-        """Periodic check for state version and status-based adaptive polling."""
-        current_version = self.project.state_version
-        
-        # 1. Version check
-        if current_version != self._last_version:
-            self.refresh()
-            return # refresh() updates _last_version
-
-        # 2. Adaptive polling & status refresh
-        statuses = self.project.kproject.get_all_statuses()
-        is_processing = any(str(s.value) in ("PROCESSING", "WAITING") for s in statuses.values())
-        
-        # Update timer interval
-        new_interval = 100 if is_processing else 1000
-        if self._poll_timer.interval() != new_interval:
-            self._poll_timer.setInterval(new_interval)
-
-        # Refresh icons for uncomputed variables that are now READY
-        self._update_statuses(statuses)
 
     def _update_statuses(self, statuses: Dict[str, Any]):
         for name, status_enum in statuses.items():
@@ -293,5 +296,75 @@ class Sidebar(QWidget):
         item = items[0]
         item_type = item.data(Qt.UserRole)
         name = item.data(Qt.UserRole + 1)
-        if item_type and name:
+        if item_type and name and item_type != "Header":
             self.element_selected.emit(item_type, name)
+
+    def show_inline_input(self, item_type: str):
+        # Find the header for item_type
+        insert_row = 0
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            if item.data(Qt.UserRole) == "Header" and item.data(Qt.UserRole + 1) == item_type:
+                insert_row = i + 1
+                break
+        
+        # Create a new list item
+        item = QListWidgetItem()
+        item.setSizeHint(QSize(0, 32))
+        self.list_widget.insertItem(insert_row, item)
+        
+        editor = QLineEdit()
+        editor.setObjectName("SidebarInlineEditor")
+        editor.setPlaceholderText("Variable name...")
+        editor.setStyleSheet(f"""
+            QLineEdit {{
+                border: 1px solid {colors.accent_focus};
+                border-radius: {style_system.radius_medium};
+                padding: 4px 8px;
+                margin: 0px 16px;
+                background: {colors.bg_panel};
+            }}
+        """)
+        
+        self.list_widget.setItemWidget(item, editor)
+        
+        def on_return():
+            name = editor.text().strip()
+            if name:
+                sm = self.project.kproject.state_manager
+                from kproject.kevent import KEventTypes
+                
+                if item_type == "Variable" and name not in sm.variables:
+                    expr = f'{name} = ""'
+                    self.project.process_event(KEventTypes.AddVariable, target=name, body=expr)
+                    self.element_selected.emit(item_type, name)
+                elif item_type == "Workflow" and name not in sm.workflows:
+                    expr = f'workflow {name} {{\n}}'
+                    self.project.process_event(KEventTypes.AddWorkflow, target=name, body=expr)
+                    self.element_selected.emit(item_type, name)
+            
+            # Remove the editor
+            row = self.list_widget.row(item)
+            if row >= 0:
+                self.list_widget.takeItem(row)
+        
+        def on_focus_out():
+            if not editor.text().strip():
+                row = self.list_widget.row(item)
+                if row >= 0:
+                    self.list_widget.takeItem(row)
+
+        editor.returnPressed.connect(on_return)
+        
+        class FocusOutFilter(QObject):
+            def eventFilter(self, obj, event):
+                if event.type() == QEvent.FocusOut:
+                    on_focus_out()
+                return super().eventFilter(obj, event)
+                
+        # Must keep a strong reference to filter
+        editor._filter = FocusOutFilter()
+        editor.installEventFilter(editor._filter)
+        
+        editor.setFocus()
+

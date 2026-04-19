@@ -4,7 +4,7 @@ import threading
 import time
 import logging
 from klogging.klogging import log_kobject
-from typing import Dict, Any, List, Set, Optional, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from kira.core.kcontext import KContext
@@ -12,27 +12,21 @@ if TYPE_CHECKING:
 
 from kproject.kmanager import KManager
 from kproject.kevent import KEvent
+from kproject.kstatus_bus import KStatusBus, KStatusEvent, KVariableStatus
 
-class KVariableStatus(Enum):
-    WAITING = "WAITING"
-    PROCESSING = "PROCESSING"
-    READY = "READY"
-    ERROR = "ERROR"
 
 class KEvaluator(KManager):
     """
     Background worker responsible for executing variable evaluations based on events.
     Maintains a work queue of variables that need re-evaluation.
     """
-    def __init__(self, context: KContext, state_manager: KStateManager):
+    def __init__(self, context: KContext, state_manager: KStateManager, status_bus: KStatusBus):
         self.context = context
         self.state_manager = state_manager
+        self.status_bus = status_bus
         
-        self._statuses: Dict[str, KVariableStatus] = {}
-        self._status_lock = threading.Lock()
-        
-        self._evaluation_queue: List[str] = []
-        self._queue_lock = threading.Lock()
+        self._evaluation_queue: list[str] = []
+        self._queue_lock = threading.RLock()
         
         self._stop_event = threading.Event()
         self._worker_thread = threading.Thread(target=self._worker_loop, daemon=True, name="KEvaluatorWorker")
@@ -56,12 +50,9 @@ class KEvaluator(KManager):
         affected.extend(affected_dependents)
         
 
-        # 3. Update statuses and queue
-        with self._status_lock, self._queue_lock:
+        # 3. Update queue
+        with self._queue_lock:
             for var_name in affected:
-                # Set status to WAITING
-                self._statuses[var_name] = KVariableStatus.WAITING
-                
                 # Remove if already in queue (to re-insert at the end)
                 if var_name in self._evaluation_queue:
                     self._evaluation_queue.remove(var_name)
@@ -69,23 +60,9 @@ class KEvaluator(KManager):
                 # Re-insert at the end
                 self._evaluation_queue.append(var_name)
 
-    def get_all_statuses(self) -> Dict[str, KVariableStatus]:
-        """Returns a copy of the current status of all variables."""
-        with self._status_lock:
-            return self._statuses.copy()
-
-    def get_status(self, name: str) -> KVariableStatus:
-        """Returns the status of a specific variable."""
-        with self._status_lock:
-            return self._statuses.get(name, KVariableStatus.WAITING)
-
-    # !DEPRECATED: Use context.get_object(name) instead
-    def get_value(self, name: str) -> Any:
-        """Gets the value associated with the object name from KContext."""
-        try:
-            return self.context.get_object(name)
-        except Exception:
-            return None
+        # 4. Update statuses via status bus
+        for var_name in affected:
+            self.status_bus.set_status(var_name, KVariableStatus.WAITING)
 
     def stop(self):
         """Stops the background worker thread."""
@@ -143,8 +120,7 @@ class KEvaluator(KManager):
 
         self._logger.info(f"Processing evaluation for: {name}")
 
-        with self._status_lock:
-            self._statuses[name] = KVariableStatus.PROCESSING
+        self.status_bus.set_status(name, KVariableStatus.PROCESSING)
         
         status = KVariableStatus.READY
         result = None
@@ -162,6 +138,5 @@ class KEvaluator(KManager):
         if result is not None:
             log_kobject(result)
 
-        with self._status_lock:
-            self._statuses[name] = status
+        self.status_bus.set_status(name, status)
 

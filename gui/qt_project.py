@@ -8,6 +8,7 @@ from PySide6.QtCore import QObject, Signal, QTimer
 
 from kproject.kproject import KProject
 from kproject.kevent import KEvent, KEventTypes
+from kproject.kstatus_bus import KStatusEvent
 
 if TYPE_CHECKING:
     from kproject.kpersistence_manager import KPersistenceManager
@@ -42,7 +43,7 @@ class QTProject(QObject):
     """
     
     # Signals for UI reactivity
-    status_changed = Signal(dict)  # Dict[str, KVariableStatus]
+    status_changed = Signal(object)  # Dict[str, KVariableStatus]
     data_added = Signal(str)       # target name
     history_updated = Signal()     # Triggered on Undo/Redo/New Event
     error_occurred = Signal(str)   # General error message
@@ -59,13 +60,11 @@ class QTProject(QObject):
         self.user_info = user_info or UserInfo()
         self.user_config = user_config or UserConfig()
         
-        # Internal state tracking for polling
-        self._prev_statuses: Dict[str, Any] = {}
-        
-        # Polling timer for reactive updates
-        self._poll_timer = QTimer(self)
-        self._poll_timer.timeout.connect(self._poll_status)
-        self._poll_timer.start(self.user_config.polling_interval_ms)
+        # Subscribe to core status updates
+        self.kproject.status_bus.subscribe(
+            KStatusEvent.VARIABLE_STATUS_CHANGED, 
+            self._on_core_status_changed
+        )
 
     def process_event(self, type: KEventTypes, target: str, body: str = ""):
         """
@@ -112,22 +111,19 @@ class QTProject(QObject):
         """Returns the full state of the KContext."""
         return self.kproject.get_context_state()
 
-    def _poll_status(self):
+    def _on_core_status_changed(self, name: str, status: Any):
         """
-        Polls the background evaluator for status changes.
-        Emits status_changed if anything has changed since the last poll.
+        Callback from KStatusBus (running in background thread).
+        Emits status_changed for the entire project state to keep UI components updated.
+        Note: We emit the full status map to maintain compatibility with existing components,
+        but we could optimize this to emit only the changed variable in the future.
         """
         try:
+            # We fetch all statuses to provide the expected dict to subscribers
             current_statuses = self.kproject.get_all_statuses()
-            
-            # Simple change detection
-            if current_statuses != self._prev_statuses:
-                self._prev_statuses = current_statuses.copy()
-                self.status_changed.emit(current_statuses)
-                
+            self.status_changed.emit(current_statuses)
         except Exception as e:
-            # We don't want to crash the timer/UI on a polling error
-            logging.warning(f"Polling error: {e}")
+            logging.warning(f"Error dispatching status change: {e}")
 
     @property
     def history(self) -> List[KEvent]:
