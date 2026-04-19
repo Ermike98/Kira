@@ -126,8 +126,8 @@ def activity_icon(
     icon_name: str,
     *,
     active: bool = False,
-    normal_stroke: str = "#1e293b",      # slate_800 — dark stroke, no bg
-    active_stroke: str = "#f8fafc",      # slate_50  — light stroke, bg via QSS
+    normal_stroke: str = "#27272a",      # zinc_800 — dark stroke, no bg
+    active_stroke: str = "#fafafa",      # zinc_50  — light stroke, bg via QSS
 ) -> QIcon:
     """
     Return the correct activity-bar icon variant as a vector QIcon.

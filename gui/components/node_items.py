@@ -17,7 +17,7 @@ class ConnectionItem(QGraphicsPathItem):
         
         start_port.connections.append(self)
 
-        self.setPen(QPen(QColor(colors.slate_400), 2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        self.setPen(QPen(QColor(colors.text_tertiary), 2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
         self.setZValue(-1) # Behind nodes
         self.setFlag(QGraphicsItem.ItemIsSelectable)
 
@@ -80,9 +80,9 @@ class PortItem(QGraphicsItem):
     def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget = None):
         painter.setRenderHint(QPainter.Antialiasing)
         if option.state & QStyle.State_MouseOver:
-            painter.setBrush(QBrush(QColor(colors.sky_600)))
+            painter.setBrush(QBrush(QColor(colors.accent_hover)))
         else:
-            painter.setBrush(QBrush(QColor(colors.sky_500)))
+            painter.setBrush(QBrush(QColor(colors.accent_base)))
         painter.setPen(QPen(QColor("white"), 1.5))
         painter.drawEllipse(self.boundingRect())
 
@@ -100,15 +100,15 @@ class WorkflowBoundaryItem(QGraphicsRectItem):
         
         super().__init__(0, 0, width, total_height)
         self.is_input = is_input
-        self.setBrush(QBrush(QColor(colors.slate_50)))
-        self.setPen(QPen(QColor(colors.slate_300), 1))
+        self.setBrush(QBrush(QColor(colors.bg_base)))
+        self.setPen(QPen(QColor(colors.border_medium), 1))
         self.setZValue(100) # In front of regular nodes to act as overlay
         self.setFlag(QGraphicsItem.ItemIgnoresTransformations)
 
         # Header label
         title_text = "WORKFLOW INPUTS" if is_input else "WORKFLOW OUTPUTS"
         title = QGraphicsTextItem(self)
-        title.setHtml(f"<div style='text-align: center; color: {colors.slate_600}; font-family: Segoe UI, Roboto, sans-serif; font-size: {style_system.font_xsmall}; font-weight: bold;'>"
+        title.setHtml(f"<div style='text-align: center; color: {colors.text_secondary}; font-family: Segoe UI, Roboto, sans-serif; font-size: {style_system.font_xsmall}; font-weight: bold;'>"
                       f"{title_text}</div>")
         title.setTextWidth(width)
         title.setPos(0, 5)
@@ -125,7 +125,7 @@ class WorkflowBoundaryItem(QGraphicsRectItem):
             
             label = QGraphicsTextItem(name, self)
             label.setFont(QFont("Segoe UI", 9))
-            label.setDefaultTextColor(QColor(colors.slate_500))
+            label.setDefaultTextColor(QColor(colors.text_secondary))
             if is_input:
                 label.setPos(width - 5 - label.boundingRect().width(), py - 12)
             else:
@@ -153,7 +153,7 @@ class WorkflowNodeItem(QGraphicsRectItem):
         self.knode_name = knode_name
         
         self.setBrush(QBrush(QColor("white")))
-        self.setPen(QPen(QColor(colors.slate_300), 1))
+        self.setPen(QPen(QColor(colors.border_medium), 1))
         self.setFlag(QGraphicsItem.ItemIsMovable)
         self.setFlag(QGraphicsItem.ItemIsSelectable)
         self.setFlag(QGraphicsItem.ItemSendsScenePositionChanges) # Crucial for lines
@@ -163,7 +163,7 @@ class WorkflowNodeItem(QGraphicsRectItem):
         self.instance_label = QGraphicsTextItem(self)
         self.instance_label.setPlainText(instance_name)
         self.instance_label.setFont(QFont("Segoe UI", 10))
-        self.instance_label.setDefaultTextColor(QColor(colors.slate_500))
+        self.instance_label.setDefaultTextColor(QColor(colors.text_secondary))
         self.instance_label.setTextInteractionFlags(Qt.TextEditorInteraction)
         
         # Center horizontally below node
@@ -174,7 +174,7 @@ class WorkflowNodeItem(QGraphicsRectItem):
         self.instance_label.document().contentsChanged.connect(self._center_instance_label)
         
         self.title = QGraphicsTextItem(self)
-        self.title.setHtml(f"<div style='text-align: center; color: {colors.slate_800}; font-family: Segoe UI, Roboto, sans-serif; font-size: {style_system.font_xsmall};'>"
+        self.title.setHtml(f"<div style='text-align: center; color: {colors.text_primary}; font-family: Segoe UI, Roboto, sans-serif; font-size: {style_system.font_xsmall};'>"
                            f"<b>{knode_name}</b></div>")
         self.title.setTextWidth(width)
         self.title.setPos(0, 5)
@@ -195,7 +195,7 @@ class WorkflowNodeItem(QGraphicsRectItem):
             
             label = QGraphicsTextItem(name, self)
             label.setFont(QFont("Segoe UI", 9))
-            label.setDefaultTextColor(QColor(colors.slate_600))
+            label.setDefaultTextColor(QColor(colors.text_secondary))
             label.setPos(12, y_pos - 12)
             self.input_ports.append(port)
 
@@ -207,7 +207,7 @@ class WorkflowNodeItem(QGraphicsRectItem):
             
             label = QGraphicsTextItem(name, self)
             label.setFont(QFont("Segoe UI", 9))
-            label.setDefaultTextColor(QColor(colors.slate_600))
+            label.setDefaultTextColor(QColor(colors.text_secondary))
             # Align right: calculate width
             label_width = label.boundingRect().width()
             label.setPos(width - 12 - label_width, y_pos - 12)
@@ -223,14 +223,14 @@ class WorkflowNodeItem(QGraphicsRectItem):
     def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget = None):
         # Draw shadow-like border
         if self.isSelected():
-            painter.setPen(QPen(QColor(colors.sky_500), 2))
+            painter.setPen(QPen(QColor(colors.accent_base), 2))
         else:
-            painter.setPen(QPen(QColor(colors.slate_200), 1))
+            painter.setPen(QPen(QColor(colors.border_light), 1))
             
         painter.setBrush(self.brush())
         painter.drawRoundedRect(self.rect(), float(style_system.radius_xlarge_i), float(style_system.radius_xlarge_i))
         
         # Draw header separator
-        painter.setPen(QPen(QColor(colors.slate_100), 1))
+        painter.setPen(QPen(QColor(colors.bg_surface), 1))
         painter.drawLine(0, 40, 180, 40)
 

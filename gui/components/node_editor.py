@@ -19,7 +19,7 @@ class NodeScene(QGraphicsScene):
         super().drawBackground(painter, rect)
         
         # Draw grid
-        painter.setPen(QPen(QColor(colors.slate_100), 1))
+        painter.setPen(QPen(QColor(colors.bg_surface), 1))
         left = int(rect.left()) - (int(rect.left()) % 20)
         top = int(rect.top()) - (int(rect.top()) % 20)
         
@@ -182,9 +182,9 @@ class NodeView(QGraphicsView):
         self.search_box.setStyleSheet(f"""
             #NodeSearchBox {{
                 padding: {style_system.spacing_small};
-                border: {style_system.border_medium} solid {colors.sky_500};
+                border: {style_system.border_medium} solid {colors.accent_base};
                 border-radius: {style_system.radius_large};
-                background: white;
+                background: {colors.bg_panel};
                 font-family: inherit;
                 font-size: {style_system.font_small};
             }}

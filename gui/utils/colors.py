@@ -12,17 +12,30 @@ sky_900 = "#0c4a6e"
 sky_950 = "#0f172a"
 
 # Neutral colors
-slate_50 = "#f8fafc"
-slate_100 = "#f1f5f9"
-slate_200 = "#e2e8f0"
-slate_300 = "#cbd5e1"
-slate_400 = "#94a3b8"
-slate_500 = "#64748b"
-slate_600 = "#475569"
-slate_700 = "#334155"
-slate_800 = "#1e293b"
-slate_900 = "#0f172a"
-slate_950 = "#020617"
+# slate_50 = "#f8fafc"
+# slate_100 = "#f1f5f9"
+# slate_200 = "#e2e8f0"
+# slate_300 = "#cbd5e1"
+# slate_400 = "#94a3b8"
+# slate_500 = "#64748b"
+# slate_600 = "#475569"
+# slate_700 = "#334155"
+# slate_800 = "#1e293b"
+# slate_900 = "#0f172a"
+# slate_950 = "#020617"
+
+# Neutral colors (Zinc - True Neutral)
+zinc_50 = "#fafafa"
+zinc_100 = "#f4f4f5"
+zinc_200 = "#e4e4e7"
+zinc_300 = "#d4d4d8"
+zinc_400 = "#a1a1aa"
+zinc_500 = "#71717a"
+zinc_600 = "#52525b"
+zinc_700 = "#3f3f46"
+zinc_800 = "#27272a"
+zinc_900 = "#18181b"
+zinc_950 = "#09090b"
 
 # Error colors
 red_50 = "#fef2f2"
@@ -62,3 +75,55 @@ yellow_700 = "#b45309"
 yellow_800 = "#92400e"
 yellow_900 = "#78350f"
 yellow_950 = "#451a03"
+
+# --- Semantic Palette ---
+
+# Backgrounds
+bg_base = zinc_50       # Main window, sidebars
+bg_panel = "#ffffff"    # Cards, inputs, table views (white)
+bg_surface = zinc_100   # Subtle hover, headers
+bg_dark = zinc_900      # Terminal, Activity Bar
+
+# Text
+text_primary = zinc_900
+text_secondary = zinc_600
+text_tertiary = zinc_400  # Disabled, hints, subtext
+text_accent = zinc_900    # Standard primary color for names
+text_inverse = "#ffffff"  # Text on dark backgrounds (white)
+
+# Borders
+border_light = zinc_200
+border_medium = zinc_300
+border_dark = zinc_800
+
+# Interactions
+action_hover = zinc_100
+action_selected = zinc_200
+
+# Accents (Brand)
+accent_base = sky_500
+accent_hover = sky_600
+accent_active = sky_700
+accent_light = sky_50    # Selection backgrounds
+accent_border = sky_200  # Selection borders
+accent_focus = sky_400   # Focus outlines
+
+# Statuses
+status_ready = green_500
+status_processing = sky_500
+status_waiting = yellow_500
+status_error = red_500
+
+bg_status_ready = green_100
+bg_status_processing = sky_100
+bg_status_waiting = zinc_50
+bg_status_error = red_100
+
+border_status_ready = green_200
+border_status_processing = sky_200
+border_status_waiting = zinc_200
+border_status_error = red_200
+
+danger_base = red_500
+danger_hover = red_600
+danger_light = red_50

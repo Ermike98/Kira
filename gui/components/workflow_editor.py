@@ -27,12 +27,12 @@ class WorkflowEditor(QWidget):
         # Toolbar
         self.toolbar = QFrame()
         self.toolbar.setFixedHeight(45)
-        self.toolbar.setStyleSheet(f"background-color: {colors.slate_50}; border-bottom: {style_system.border_thin} solid {colors.slate_200};")
+        self.toolbar.setStyleSheet(f"background-color: {colors.bg_base}; border-bottom: {style_system.border_thin} solid {colors.border_light};")
         tool_layout = QHBoxLayout(self.toolbar)
         tool_layout.setContentsMargins(15, 0, 15, 0)
         
         self.title_label = QLabel("New Workflow")
-        self.title_label.setStyleSheet(f"font-weight: 600; color: {colors.slate_900}; font-size: {style_system.font_small};")
+        self.title_label.setStyleSheet(f"font-weight: 600; color: {colors.text_primary}; font-size: {style_system.font_small};")
         tool_layout.addWidget(self.title_label)
         
         tool_layout.addStretch()
@@ -51,12 +51,12 @@ class WorkflowEditor(QWidget):
         self.add_node_search.setStyleSheet(f"""
             QLineEdit {{
                 padding: {style_system.spacing_xxsmall} {style_system.spacing_small};
-                border: {style_system.border_thin} solid {colors.slate_200};
+                border: {style_system.border_thin} solid {colors.border_light};
                 border-radius: {style_system.radius_large};
-                background: white;
+                background: {colors.bg_panel};
                 font-size: {style_system.font_small};
             }}
-            QLineEdit:focus {{ border-color: {colors.sky_500}; }}
+            QLineEdit:focus {{ border-color: {colors.accent_base}; }}
         """)
         self.add_node_search.returnPressed.connect(self._on_toolbar_add_node)
         tool_layout.addWidget(self.add_node_search)

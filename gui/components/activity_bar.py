@@ -11,8 +11,8 @@ class ActivityBar(QWidget):
     Contains icons to toggle different sidebar panels.
 
     Icon colours:
-      • Normal  → dark stroke (#334155) on transparent background
-      • Active  → light stroke (#f8fafc) on dark rounded background (#334155)
+      • Normal  → dark stroke (zinc_800) on transparent background
+      • Active  → light stroke (zinc_50) on dark rounded background (zinc_700)
     """
     view_changed = Signal(str)  # Emits the view id of the selected button
 

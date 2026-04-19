@@ -40,8 +40,8 @@ def get_icon_name_for_type(type_info: KTypeInfo) -> str:
     return "database.svg"
 
 def type_icon(icon_name: str) -> QIcon:
-    """Generates a small slate coloured icon for the sidebar."""
-    svg = recolor_svg(icon_name, stroke_color=colors.slate_500)
+    """Generates a small neutral icon for the sidebar."""
+    svg = recolor_svg(icon_name, stroke_color=colors.zinc_600)
     return icon_from_svg(svg)
 
 
@@ -86,6 +86,7 @@ class SidebarItemWidget(QWidget):
 
         self.name_label = QLabel(name)
         self.name_label.setObjectName("SidebarItemLabel")
+        self.name_label.setStyleSheet(f"color: {colors.text_primary};")
         layout.addWidget(self.name_label)
         layout.addStretch()
 

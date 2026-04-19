@@ -35,7 +35,7 @@ class BottomPanel(QWidget):
         self.terminal_widget = QTextEdit()
         from gui.utils import colors
         from gui import style_system
-        self.terminal_widget.setStyleSheet(f"background-color: {colors.slate_900}; color: {colors.slate_50}; font-family: 'Consolas', monospace; font-size: {style_system.font_small};")
+        self.terminal_widget.setStyleSheet(f"background-color: {colors.text_primary}; color: {colors.bg_base}; font-family: 'Consolas', monospace; font-size: {style_system.font_small};")
         self.tabs.addTab(self.terminal_widget, "TERMINAL")
         
         layout.addWidget(self.tabs)

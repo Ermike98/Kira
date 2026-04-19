@@ -64,7 +64,12 @@ class LiteralView(QWidget):
         
         # Inner centering widget
         self.centering_widget = QWidget()
+        self.centering_widget.setObjectName("LiteralCenterWidget")
         self.scroll.setWidget(self.centering_widget)
+        
+        # Ensure scroll area and centering widget are neutral/white
+        self.scroll.setStyleSheet(f"background-color: {colors.bg_panel}; border: none;")
+        self.centering_widget.setStyleSheet(f"background-color: {colors.bg_panel};")
         
         self.center_layout = QVBoxLayout(self.centering_widget)
         self.center_layout.setContentsMargins(40, 40, 40, 40)
@@ -126,8 +131,8 @@ class LiteralView(QWidget):
         # Apply style to the Card
         self.card.setStyleSheet(f"""
             #LiteralCard {{
-                background-color: white;
-                border: 1px solid {colors.slate_200};
+                background-color: {colors.bg_panel};
+                border: 1px solid {colors.border_light};
                 border-radius: {radius}px;
             }}
         """)
@@ -137,18 +142,18 @@ class LiteralView(QWidget):
         self.header_layout.setContentsMargins(padding, padding, padding, int(padding/2))
         self.val_lbl.setContentsMargins(padding, int(padding/2), padding, padding)
         
-        self.name_lbl.setStyleSheet(f"font-weight: bold; font-size: {font_name}px; color: {colors.slate_900}; padding: 0; margin: 0;")
-        self.type_lbl.setStyleSheet(f"font-size: {font_type}px; color: {colors.slate_400}; text-transform: uppercase; font-weight: 600; padding: 0; margin: 0;")
+        self.name_lbl.setStyleSheet(f"font-weight: bold; font-size: {font_name}px; color: {colors.text_primary}; padding: 0; margin: 0;")
+        self.type_lbl.setStyleSheet(f"font-size: {font_type}px; color: {colors.text_tertiary}; text-transform: uppercase; font-weight: 600; padding: 0; margin: 0;")
         
         # Full width line (no horizontal margin)
-        self.line.setStyleSheet(f"color: {colors.slate_100}; background-color: {colors.slate_100}; border: none; height: 1px; margin: 0;")
+        self.line.setStyleSheet(f"color: {colors.bg_surface}; background-color: {colors.bg_surface}; border: none; height: 1px; margin: 0;")
         
         display_val = str(self._value.value)
         if self._value.lit_type.name == "STRING":
             display_val = f'"{display_val}"'
             
         self.val_lbl.setText(display_val)
-        self.val_lbl.setStyleSheet(f"font-size: {font_val}px; color: {colors.slate_900};")
+        self.val_lbl.setStyleSheet(f"font-size: {font_val}px; color: {colors.text_primary};")
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -220,16 +225,32 @@ class _ArrayTableView(QTableWidget):
         style = f"""
             QTableWidget {{ 
                 font-size: {self._font_size}px; 
+                background-color: {colors.bg_panel};
+                alternate-background-color: {colors.bg_surface};
+                gridline-color: {colors.border_light};
+                color: {colors.text_primary};
             }}
             QHeaderView::section {{
+                background-color: {colors.bg_base};
+                color: {colors.text_secondary};
                 font-size: {self._font_size}px;
                 padding: {style_system.spacing_xsmall};
+                border: none;
+                border-right: 1px solid {colors.border_light};
+                border-bottom: 1px solid {colors.border_light};
+            }}
+            QTableCornerButton::section {{
+                background-color: {colors.bg_base};
+                border: none;
+                border-right: 1px solid {colors.border_light};
+                border-bottom: 1px solid {colors.border_light};
             }}
         """
         self.setStyleSheet(style)
         # Update row height
         new_h = int(self._font_size * 2.2)
         self.verticalHeader().setDefaultSectionSize(new_h)
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch) if self.columnCount() == 1 else None
 
     def wheelEvent(self, event):
         """Handle zoom with Ctrl + Mouse Wheel."""
@@ -299,10 +320,25 @@ class _ExcelTableView(QTableWidget):
         style = f"""
             QTableWidget {{ 
                 font-size: {self._font_size}px; 
+                background-color: {colors.bg_panel};
+                alternate-background-color: {colors.bg_surface};
+                gridline-color: {colors.border_light};
+                color: {colors.text_primary};
             }}
             QHeaderView::section {{
+                background-color: {colors.bg_base};
+                color: {colors.text_secondary};
                 font-size: {self._font_size}px;
                 padding: {style_system.spacing_xsmall};
+                border: none;
+                border-right: 1px solid {colors.border_light};
+                border-bottom: 1px solid {colors.border_light};
+            }}
+            QTableCornerButton::section {{
+                background-color: {colors.bg_base};
+                border: none;
+                border-right: 1px solid {colors.border_light};
+                border-bottom: 1px solid {colors.border_light};
             }}
         """
         self.setStyleSheet(style)
@@ -412,11 +448,9 @@ class DataView(QWidget):
         self.stack = QStackedWidget()
         layout.addWidget(self.stack)
 
-        # Version-checking timer
-        self._poll_timer = QTimer(self)
-        self._poll_timer.timeout.connect(self._check_refresh)
         if project:
-            self._poll_timer.start(1000)
+            project.status_changed.connect(self._check_refresh)
+            project.history_updated.connect(self._check_refresh)
 
     # ---- Public API ---------------------------------------------------------
 
