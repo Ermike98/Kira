@@ -22,5 +22,5 @@ from kira.knodes.knode_instance import KNodeInstance
 
 from kira.klanguage.ktokenizer import KToken, KTokenType, ktokenize
 from kira.klanguage.kast import AstNode, AstExpression, AstLiteral, AstSymbol, AstCall, AstAssignment, AstExpressionStmt, AstWorkflow, AstArray, AstProgram, kparse
-from kira.klanguage.kbuilder import kbuild_program, kbuild_workflow, kbuild_expression, kbuild_assignment
+from kira.klanguage.kbuilder import kbuild_program, kbuild_workflow, kbuild_expression, kbuild_assignment, keval_script
 

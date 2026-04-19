@@ -11,8 +11,10 @@ from kira.core.kprogram import KProgram
 from kira.core.ksymbol import KSymbol
 from kira.klanguage.kast import (
     AstProgram, AstAssignment, AstExpressionStmt, AstWorkflow,
-    AstExpression, AstLiteral, AstSymbol, AstCall, AstFormula, AstArray
+    AstExpression, AstLiteral, AstSymbol, AstCall, AstFormula, AstArray, AstNode
 )
+from kira.klanguage.ktokenizer import ktokenize, KTokenType
+from kira.klanguage.kast import kparse
 from kira.klanguage.utils import token_hash_name
 from kira.knodes.knode_instance import KNodeInstance
 from kira.knodes.kworkflow import KWorkflow
@@ -67,7 +69,7 @@ def kbuild_expression(expr: AstExpression, target_name: Optional[str]) -> KObjec
         if is_constant:
             # All elements are literals, we can collapse into a single KData
             values = [el.value.value for el in built_elements]
-            return KData(inst_name, KArray(np.array(values, dtype=object)))
+            return KData(inst_name, KArray(np.array(values)))
         else:
             # Reactive array: create a specialized node for this arity
             node = _create_array_node(len(built_elements))
@@ -125,3 +127,25 @@ def kbuild_workflow(ast_wf: AstWorkflow) -> KWorkflow:
         nodes=nodes,
         default_inputs=defaults
     )
+
+
+def keval_script(src: str) -> KObject:
+    """
+    Parses and builds a Kira script string into a KObject.
+    Handles tokenization (filtering whitespace), parsing, and recursive building.
+    """
+    tokens = [t for t in ktokenize(src.strip()) if t.token_type != KTokenType.WHITESPACE]
+    ast = kparse(tokens)
+
+    if isinstance(ast, AstWorkflow):
+        return kbuild_workflow(ast)
+    if isinstance(ast, AstProgram):
+        return kbuild_program(ast)
+    if isinstance(ast, AstAssignment):
+        return kbuild_assignment(ast)
+    if isinstance(ast, AstExpressionStmt):
+        return kbuild_expression(ast.expression, None)
+    if isinstance(ast, AstExpression):
+        return kbuild_expression(ast, None)
+
+    raise ValueError(f"Unknown AST node type: {type(ast)}")

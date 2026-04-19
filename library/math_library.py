@@ -11,6 +11,8 @@ from kira.kdata.kliteral import K_BOOLEAN_TYPE, K_INTEGER_TYPE, K_NUMBER_TYPE, K
 from kira.knodes.kfunction import KFunction, kfunction
 from kira.ktypeinfo.union_type import KUnionTypeInfo
 from kira.library.node_library import KLibrary
+from kira import keval_script
+import scipy.special as sp
 
 # Create a library of basic math functions wrapping Numpy functions
 
@@ -85,6 +87,51 @@ k_math_library.register(numpy_to_kfunction(
 # Convert angles from radians to degrees.
 k_math_library.register(numpy_to_kfunction(
     np.rad2deg,  # (x, /[, out, where, casting, order, ...])
+    [("x", K_NP_MATH_TYPE)],
+    [("y", K_NP_MATH_TYPE)]
+))
+
+
+# Exponential and Logarithmic Functions
+
+# Exponential function, element-wise.
+k_math_library.register(numpy_to_kfunction(
+    np.exp,
+    [("x", K_NP_MATH_TYPE)],
+    [("y", K_NP_MATH_TYPE)]
+))
+
+# Natural logarithm, element-wise.
+k_math_library.register(numpy_to_kfunction(
+    np.log,
+    [("x", K_NP_MATH_TYPE)],
+    [("y", K_NP_MATH_TYPE)]
+))
+
+# Base-10 logarithm, element-wise.
+k_math_library.register(numpy_to_kfunction(
+    np.log10,
+    [("x", K_NP_MATH_TYPE)],
+    [("y", K_NP_MATH_TYPE)]
+))
+
+# Base-2 logarithm, element-wise.
+k_math_library.register(numpy_to_kfunction(
+    np.log2,
+    [("x", K_NP_MATH_TYPE)],
+    [("y", K_NP_MATH_TYPE)]
+))
+
+# Square root, element-wise.
+k_math_library.register(numpy_to_kfunction(
+    np.sqrt,
+    [("x", K_NP_MATH_TYPE)],
+    [("y", K_NP_MATH_TYPE)]
+))
+
+# Cube root, element-wise.
+k_math_library.register(numpy_to_kfunction(
+    np.cbrt,
     [("x", K_NP_MATH_TYPE)],
     [("y", K_NP_MATH_TYPE)]
 ))
@@ -166,6 +213,76 @@ k_math_library.register(numpy_to_kfunction(
     [("x", K_NP_MATH_TYPE)],
     [("y", K_NP_MATH_TYPE)]
 ))
+
+
+# Absolute and Sign Functions
+
+# Absolute value, element-wise.
+k_math_library.register(numpy_to_kfunction(
+    np.abs,
+    [("x", K_NP_MATH_TYPE)],
+    [("y", K_NP_MATH_TYPE)],
+    name="abs"
+))
+
+# Sign of each element.
+k_math_library.register(numpy_to_kfunction(
+    np.sign,
+    [("x", K_NP_MATH_TYPE)],
+    [("y", K_NP_MATH_TYPE)]
+))
+
+
+# Miscellaneous Utilities
+
+# Element-wise remainder of division.
+k_math_library.register(numpy_to_kfunction(
+    np.mod,
+    [("x1", K_NP_MATH_TYPE), ("x2", K_NP_MATH_TYPE)],
+    [("y", K_NP_MATH_TYPE)]
+))
+
+# Clip (limit) the values in an array.
+k_math_library.register(numpy_to_kfunction(
+    np.clip,
+    [("x", K_NP_MATH_TYPE), ("min", K_NP_MATH_TYPE), ("max", K_NP_MATH_TYPE)],
+    [("y", K_NP_MATH_TYPE)]
+))
+
+# Element-wise minimum.
+k_math_library.register(numpy_to_kfunction(
+    np.minimum,
+    [("x1", K_NP_MATH_TYPE), ("x2", K_NP_MATH_TYPE)],
+    [("y", K_NP_MATH_TYPE)],
+    name="minimum"
+))
+
+# Element-wise maximum.
+k_math_library.register(numpy_to_kfunction(
+    np.maximum,
+    [("x1", K_NP_MATH_TYPE), ("x2", K_NP_MATH_TYPE)],
+    [("y", K_NP_MATH_TYPE)],
+    name="maximum"
+))
+
+
+# Special Functions
+
+# Gamma function.
+k_math_library.register(numpy_to_kfunction(
+    sp.gamma,
+    [("x", K_NP_MATH_TYPE)],
+    [("y", K_NP_MATH_TYPE)],
+    name="gamma"
+))
+
+# Sigmoid function implemented as a workflow.
+sigmoid_src = """
+workflow sigmoid(x) -> y:
+    y = 1 / (1 + exp(-x))
+    return y
+"""
+k_math_library.register(keval_script(sigmoid_src))
 
 k_math_library.register(KData("PI", KLiteral(np.pi, KLiteralType.NUMBER)))
 k_math_library.register(KData("E", KLiteral(np.e, KLiteralType.NUMBER)))
