@@ -27,12 +27,11 @@ from PySide6.QtWidgets import (
     QListWidget, QListWidgetItem, QAbstractItemView,
     QSizePolicy, QCompleter, QListView
 )
-from PySide6.QtCore import Qt, Signal, QSize, QTimer, QSortFilterProxyModel, QModelIndex
-from PySide6.QtGui import QFont, QStandardItemModel, QStandardItem
+from PySide6.QtCore import Qt, Signal, QSize, QTimer, QSortFilterProxyModel, QModelIndex, QMimeData
+from PySide6.QtGui import QFont, QStandardItemModel, QStandardItem, QDrag, QPixmap, QPainter
 from gui.components.sidebar import get_icon_name_for_type, type_icon
 
 from gui.utils import colors
-from gui import style_system
 
 if TYPE_CHECKING:
     from gui.qt_project import QTProject
@@ -148,7 +147,15 @@ def attach_word_completer(line_edit: QLineEdit, source_model: QStandardItemModel
     def on_activated(text):
         target = getattr(completer, "target_cursor_pos", -1)
         if target >= 0:
-            QTimer.singleShot(0, lambda: line_edit.setCursorPosition(target))
+            def _safe_set_cursor():
+                try:
+                    # Check if widget still exists
+                    if not line_edit.isWidgetType():
+                        return
+                    line_edit.setCursorPosition(target)
+                except (RuntimeError, AttributeError):
+                    pass
+            QTimer.singleShot(0, _safe_set_cursor)
             
     completer.activated.connect(on_activated)
 
@@ -369,20 +376,13 @@ class SourceCard(QFrame):
         self.setObjectName("SourceCard")
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(6)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        # Header
-        header = QHBoxLayout()
-        lbl = QLabel("Source")
-        lbl.setObjectName("SourceCardTitle")
-        header.addWidget(lbl)
-        header.addStretch()
-        layout.addLayout(header)
 
         # Input
         self.input = QLineEdit(source_text)
-        self.input.setObjectName("StepParamInput")
+        self.input.setObjectName("StepSourceInput")
         self.input.setPlaceholderText("e.g. Sales_Table, 1250000, range(1, 10)")
         self.input.editingFinished.connect(self.source_changed.emit)
         layout.addWidget(self.input)
@@ -409,7 +409,7 @@ class StepCard(QFrame):
 
     step_changed = Signal()
     step_deleted = Signal()
-    func_name_changed = Signal(str)  # emitted when user changes function name
+    func_name_changed = Signal(str, bool)  # name, should_focus_params
 
     def __init__(self, step: PipelineStep, step_index: int = 0, parent=None):
         super().__init__(parent)
@@ -420,6 +420,7 @@ class StepCard(QFrame):
         self._func_model: Optional[QStandardItemModel] = None
         self._mixed_model: Optional[QStandardItemModel] = None
 
+        self._is_entering = False
         self._main_layout = QVBoxLayout(self)
         self._main_layout.setContentsMargins(12, 10, 12, 10)
         self._main_layout.setSpacing(6)
@@ -429,39 +430,45 @@ class StepCard(QFrame):
         header.setSpacing(8)
 
         # Drag handle
-        drag_lbl = QLabel("≡")
-        drag_lbl.setObjectName("StepDragHandle")
-        drag_lbl.setCursor(Qt.OpenHandCursor)
-        header.addWidget(drag_lbl)
+        self._drag_handle = QLabel("≡")
+        self._drag_handle.setObjectName("StepDragHandle")
+        self._drag_handle.setCursor(Qt.OpenHandCursor)
+        header.addWidget(self._drag_handle)
 
-        # Step number badge
-        self._step_badge = QLabel(f"Step {step_index + 1}")
-        self._step_badge.setObjectName("StepBadge")
-        header.addWidget(self._step_badge)
+        if not step.func_name:
+            self._drag_handle.hide()
+
 
         # Function name (editable if empty, label if set)
         if step.func_name:
             self._func_label = QLabel(step.func_name)
             self._func_label.setObjectName("StepFuncName")
             header.addWidget(self._func_label)
+            # Use fixed index (1) as badge is removed
+            # self._func_label is at index 1 (after drag handle)
             self._func_input = None
         else:
             self._func_input = QLineEdit()
             self._func_input.setObjectName("StepFuncInput")
             self._func_input.setPlaceholderText("function name…")
             self._func_input.editingFinished.connect(self._on_func_name_entered)
+            self._func_input.returnPressed.connect(self._on_func_return)
             header.addWidget(self._func_input)
+            # Index 1 (after drag handle)
             self._func_label = None
 
         header.addStretch()
 
         # Delete button
-        del_btn = QPushButton("×")
-        del_btn.setObjectName("StepDeleteButton")
-        del_btn.setFixedSize(24, 24)
-        del_btn.setCursor(Qt.PointingHandCursor)
-        del_btn.clicked.connect(self.step_deleted.emit)
-        header.addWidget(del_btn)
+        self._del_btn = QPushButton("×")
+        self._del_btn.setObjectName("StepDeleteButton")
+        self._del_btn.setFixedSize(24, 24)
+        self._del_btn.setCursor(Qt.PointingHandCursor)
+        self._del_btn.clicked.connect(self.step_deleted.emit)
+        header.addWidget(self._del_btn)
+
+        if not step.func_name:
+            self._del_btn.hide()
 
         self._main_layout.addLayout(header)
 
@@ -502,6 +509,7 @@ class StepCard(QFrame):
             if default is not None:
                 inp.setPlaceholderText(f"default: {default}")
             inp.editingFinished.connect(self._on_param_changed)
+            inp.returnPressed.connect(lambda i=len(self._param_inputs): self._on_param_return_pressed(i))
             row.addWidget(inp)
 
             self._param_inputs.append(inp)
@@ -511,12 +519,38 @@ class StepCard(QFrame):
         if self._mixed_model:
             self.set_models(self._func_model, self._mixed_model)
 
+    def _on_func_return(self):
+        self._is_entering = True
+
     def _on_func_name_entered(self):
-        """User typed a function name in the blank input."""
+        """User typed a function name via Blur or Enter."""
         if self._func_input:
             name = self._func_input.text().strip()
             if name:
-                self.func_name_changed.emit(name)
+                self.func_name_changed.emit(name, self._is_entering)
+        self._is_entering = False
+
+    def _on_param_return_pressed(self, index: int):
+        """User pressed enter in a parameter input."""
+        if index < len(self._param_inputs) - 1:
+            self._param_inputs[index + 1].setFocus()
+            self._param_inputs[index + 1].selectAll()
+        else:
+            self.step_changed.emit()
+
+    def focus_first_param(self):
+        if self._param_inputs:
+            self._param_inputs[0].setFocus()
+            self._param_inputs[0].selectAll()
+        else:
+            # If no params, we probably already committed via func_name_changed
+            # but we can emit step_changed just in case to ensure project sync
+            self.step_changed.emit()
+
+    def focus_param(self, index: int):
+        if 0 <= index < len(self._param_inputs):
+            self._param_inputs[index].setFocus()
+            self._param_inputs[index].selectAll()
 
     def _on_param_changed(self):
         """Sync param values back into the step model and emit."""
@@ -529,7 +563,6 @@ class StepCard(QFrame):
         """Replace the displayed step and rebuild param inputs."""
         self._step = step
         self._step_index = index
-        self._step_badge.setText(f"Step {index + 1}")
 
         # Replace function name label
         if self._func_label:
@@ -541,7 +574,8 @@ class StepCard(QFrame):
             self._func_label.setObjectName("StepFuncName")
             # Insert after badge
             header_layout = self._main_layout.itemAt(0).layout()
-            header_layout.insertWidget(2, self._func_label)
+            # Insert after drag handle (index 0)
+            header_layout.insertWidget(1, self._func_label)
 
         self._build_param_inputs()
 
@@ -556,6 +590,26 @@ class StepCard(QFrame):
         for inp in self._param_inputs:
             if not inp.completer():
                 attach_word_completer(inp, mixed_model)
+
+    def mousePressEvent(self, event):
+        if (event.button() == Qt.LeftButton and 
+            hasattr(self, "_drag_handle") and
+            self._drag_handle.isVisible() and 
+            self._drag_handle.geometry().contains(event.pos())):
+            self._start_drag()
+        super().mousePressEvent(event)
+
+    def _start_drag(self):
+        drag = QDrag(self)
+        mime = QMimeData()
+        mime.setData("application/x-kira-step-index", str(self._step_index).encode())
+        drag.setMimeData(mime)
+        
+        pixmap = self.grab()
+        drag.setPixmap(pixmap)
+        drag.setHotSpot(self._drag_handle.geometry().center())
+        
+        drag.exec(Qt.MoveAction)
 
     @property
     def step(self) -> PipelineStep:
@@ -605,22 +659,25 @@ class StepEditorPanel(QWidget):
         self._context_state: dict = {}
         self._func_model = QStandardItemModel()
         self._mixed_model = QStandardItemModel()
+        self._status: str = ""
 
         # ---- Layout ----
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
+
         # Header
-        header = QWidget()
-        header.setObjectName("StepEditorHeader")
-        header_layout = QHBoxLayout(header)
+        self._header = QWidget()
+        self._header.setObjectName("StepEditorHeader")
+        header_layout = QHBoxLayout(self._header)
         header_layout.setContentsMargins(16, 12, 16, 10)
-        title = QLabel("Pipeline")
-        title.setObjectName("StepEditorTitle")
-        header_layout.addWidget(title)
+        self._title = QLabel(self.variable_name)
+        self._title.setObjectName("StepEditorTitle")
+        self._title.setAutoFillBackground(True)
+        header_layout.addWidget(self._title)
         header_layout.addStretch()
-        outer.addWidget(header)
+        outer.addWidget(self._header)
 
         # Scroll area
         scroll = QScrollArea()
@@ -629,11 +686,14 @@ class StepEditorPanel(QWidget):
         outer.addWidget(scroll)
 
         self._content = QWidget()
+        self._content.setObjectName("StepEditorContent")
         self._content_layout = QVBoxLayout(self._content)
         self._content_layout.setContentsMargins(12, 8, 12, 12)
         self._content_layout.setSpacing(0)
         self._content_layout.setAlignment(Qt.AlignTop)
         scroll.setWidget(self._content)
+        scroll.setStyleSheet(f"QScrollArea {{ background-color: {colors.bg_base}; border: none; }}")
+        self._content.setStyleSheet(f"#StepEditorContent {{ background-color: {colors.bg_base}; }}")
 
         # Source card (always present)
         self._source_card = SourceCard("")
@@ -647,20 +707,31 @@ class StepEditorPanel(QWidget):
         self._steps_layout.setSpacing(0)
         self._steps_layout.setAlignment(Qt.AlignTop)
         self._content_layout.addWidget(self._steps_widget)
-
-        # Add Step button
-        self._add_btn = QPushButton("+ Add Step")
-        self._add_btn.setObjectName("AddStepButton")
-        self._add_btn.setCursor(Qt.PointingHandCursor)
-        self._add_btn.clicked.connect(self._on_add_step)
-        self._content_layout.addWidget(self._add_btn, alignment=Qt.AlignLeft)
+        
+        # Tighten margin between Source and Steps
+        self._steps_layout.setContentsMargins(0, 4, 0, 0)
 
         self._content_layout.addStretch()
 
+        # Reorder indicator (a thin line showing where a drop will occur)
+        # Parented to 'self' so we can move it freely over the layout
+        self._reorder_indicator = QFrame(self)
+        self._reorder_indicator.setObjectName("ReorderIndicator")
+        self._reorder_indicator.setFixedHeight(2)
+        self._reorder_indicator.setStyleSheet(f"background-color: {colors.accent_base};")
+        self._reorder_indicator.hide()
+
+        self.setAcceptDrops(True)
+
         # ---- Initial load ----
         self.project.history_updated.connect(self._refresh_autocomplete_cache)
+        self.project.status_changed.connect(self._on_status_changed)
+        
         self._refresh_autocomplete_cache()
         self._load_from_project()
+        
+        # Trigger initial status update with a small delay to allow visual transition from grey
+        QTimer.singleShot(200, lambda: self._on_status_changed(self.project.kproject.get_all_statuses()))
 
     # ---- Public API ----
 
@@ -668,6 +739,33 @@ class StepEditorPanel(QWidget):
         """Reload from the project state (e.g. after undo/redo)."""
         self._load_from_project()
 
+    def _on_status_changed(self, statuses: dict):
+        """Update visual feedback based on the variable's evaluation status."""
+        status_obj = statuses.get(self.variable_name)
+        if not status_obj:
+            return
+
+        status_str = status_obj.name # WAITING, PROCESSING, READY, ERROR
+        
+        # Check for logic errors (computed but empty/invalid)
+        if status_str == "READY":
+            kdata = self.project.get_value(self.variable_name)
+            if not bool(kdata):
+                status_str = "ERROR"
+
+        if status_str == self._status:
+            return
+            
+        self._status = status_str
+        self._header.setProperty("status", status_str)
+        self._title.setProperty("status", status_str)
+        
+        # Refresh styling
+        self._header.style().unpolish(self._header)
+        self._header.style().polish(self._header)
+        self._title.style().unpolish(self._title)
+        self._title.style().polish(self._title)
+        
     def _refresh_autocomplete_cache(self):
         """Update the completer models when the history/context changes."""
         self._context_state = self.project.get_context_state()
@@ -771,6 +869,10 @@ class StepEditorPanel(QWidget):
             )
             self._steps.append(step)
 
+        # Ensure trailing empty step
+        if not self._steps or self._steps[-1].func_name:
+            self._steps.append(PipelineStep())
+
         self._rebuild_step_cards()
 
     def _lookup_func_params(self, func_name: str) -> Tuple[List[str], dict]:
@@ -832,27 +934,25 @@ class StepEditorPanel(QWidget):
             card = StepCard(step, step_index=i)
             card.step_changed.connect(self._on_commit)
             card.step_deleted.connect(lambda idx=i: self._on_delete_step(idx))
-            card.func_name_changed.connect(lambda name, idx=i: self._on_func_name_set(idx, name))
+            card.func_name_changed.connect(lambda name, focus, idx=i: self._on_func_name_set(idx, name, focus))
             card.set_models(self._func_model, self._mixed_model)
             self._step_cards.append(card)
             self._steps_layout.addWidget(card)
 
     # ---- Internal: User Actions ----
 
-    def _on_add_step(self):
-        """Add a blank step at the end."""
-        step = PipelineStep()
-        self._steps.append(step)
-        self._rebuild_step_cards()
 
     def _on_delete_step(self, index: int):
         """Remove step at index and commit."""
         if 0 <= index < len(self._steps):
             self._steps.pop(index)
+            # Ensure we still have an empty step if we just deleted the only one
+            if not self._steps or self._steps[-1].func_name:
+                self._steps.append(PipelineStep())
             self._rebuild_step_cards()
             self._on_commit()
 
-    def _on_func_name_set(self, index: int, func_name: str):
+    def _on_func_name_set(self, index: int, func_name: str, should_focus_params: bool = False):
         """User entered a function name for a blank step — populate params."""
         if 0 <= index < len(self._steps):
             param_names, param_defaults = self._lookup_func_params(func_name)
@@ -862,7 +962,115 @@ class StepEditorPanel(QWidget):
                 param_values=[""] * len(param_names),
                 param_defaults=[param_defaults.get(n) for n in param_names],
             )
+            # Add new trailing empty step if we just filled the last one
+            if index == len(self._steps) - 1:
+                self._steps.append(PipelineStep())
+
             self._rebuild_step_cards()
+            
+            # Focus transition: if requested (via Enter press)
+            # we focus the first param of the rebuilt card.
+            if should_focus_params and 0 <= index < len(self._step_cards):
+                # Use singleShot to wait for layout/widget creation
+                QTimer.singleShot(0, self._step_cards[index].focus_first_param)
+
+    # ---- Internal: Drag and Drop ----
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat("application/x-kira-step-index"):
+            event.acceptProposedAction()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasFormat("application/x-kira-step-index"):
+            data = event.mimeData().data("application/x-kira-step-index")
+            source_idx = int(data.data().decode())
+            pos = event.position().toPoint()
+            # Calculate where to show the indicator
+            self._update_reorder_indicator(pos, source_idx)
+            event.acceptProposedAction()
+
+    def dragLeaveEvent(self, event):
+        self._reorder_indicator.hide()
+
+    def dropEvent(self, event):
+        if event.mimeData().hasFormat("application/x-kira-step-index"):
+            data = event.mimeData().data("application/x-kira-step-index")
+            source_idx = int(data.data().decode())
+            
+            # Find target index from drop position
+            pos = event.position().toPoint()
+            target_idx = self._calculate_drop_index(pos)
+            
+            # Perform move if it's a real change
+            # (Note: dropping a step at its current position or 
+            #  one position after shouldn't trigger a move)
+            if source_idx != target_idx and source_idx != target_idx - 1:
+                self._move_step(source_idx, target_idx)
+            
+            self._reorder_indicator.hide()
+            event.acceptProposedAction()
+
+    def _update_reorder_indicator(self, pos, source_idx: int):
+        """Place the indicator line between cards based on Y position."""
+        target_idx = self._calculate_drop_index(pos)
+        
+        # Hide indicator if dropping here results in no move (no-op zone)
+        if target_idx == source_idx or target_idx == source_idx + 1:
+            self._reorder_indicator.hide()
+            return
+
+        self._reorder_indicator.show()
+        
+        from PySide6.QtCore import QPoint
+
+        if target_idx < len(self._step_cards):
+            card = self._step_cards[target_idx]
+            # card's top in panel coordinates
+            y = card.mapTo(self, QPoint(0, 0)).y()
+        else:
+            # Drop after the last step card
+            if self._step_cards:
+                last_card = self._step_cards[-1]
+                y = last_card.mapTo(self, QPoint(0, 0)).y() + last_card.height()
+            else:
+                y = self._steps_widget.mapTo(self, QPoint(0, 0)).y()
+
+        self._reorder_indicator.move(12, y - 1)
+        self._reorder_indicator.setFixedWidth(self.width() - 24)
+        self._reorder_indicator.raise_()
+
+    def _calculate_drop_index(self, pos):
+        """Find the insertion index based on current mouse position."""
+        # Map pos to _steps_widget coordinates
+        local_pos = self._steps_widget.mapFrom(self, pos)
+        y = local_pos.y()
+        
+        # Iterate through cards and find the closest gap
+        for i, card in enumerate(self._step_cards):
+            geom = card.geometry()
+            # If we are above the center of this card, we want index i
+            if y < geom.center().y():
+                return i
+        
+        # Otherwise, we are after the last card
+        # Cap at len - 1 to ensure we never drop after the blank step
+        return max(0, len(self._step_cards) - 1)
+
+    def _move_step(self, source_idx, target_idx):
+        """Move step from source_idx and insert before target_idx."""
+        if source_idx < target_idx:
+            target_idx -= 1
+            
+        step = self._steps.pop(source_idx)
+        self._steps.insert(target_idx, step)
+        
+        # Clean up trailing empty steps (might have duplicates or misplaced one)
+        # Ensure only one blank at the end
+        self._steps = [s for s in self._steps if s.func_name]
+        self._steps.append(PipelineStep())
+        
+        self._rebuild_step_cards()
+        self._on_commit()
 
     # ---- Internal: Commit ----
 
