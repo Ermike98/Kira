@@ -9,6 +9,18 @@ LIGHT_THEME = f"""
     color: {colors.text_primary};
 }}
 
+/* Splitters — thin lines */
+QSplitter::handle:horizontal {{
+    width: 1px;
+    background-color: {colors.border_light};
+}}
+
+QSplitter::handle:vertical {{
+    height: 1px;
+    background-color: {colors.border_light};
+}}
+
+
 QMainWindow {{
     background-color: {colors.bg_base};
 }}
@@ -82,11 +94,11 @@ QMenu::separator {{
 }}
 
 .ActivityButton:hover {{
-    background-color: {colors.text_primary};
+    background-color: {colors.accent_hover};
 }}
 
 .ActivityButton[active="true"] {{
-    background-color: {colors.text_secondary};
+    background-color: {colors.accent_active};
 }}
 
 /* ---- Sidebar ---- */
@@ -265,6 +277,7 @@ QHeaderView::section {{
     border-bottom: {style_system.border_thin} solid {colors.border_light};
     font-weight: 600;
     color: {colors.text_secondary};
+    text-align: left;
 }}
 
 QTableCornerButton::section {{

@@ -27,8 +27,10 @@ def get_icon_name_for_type(type_info: KTypeInfo) -> str:
         return "box.svg"
     if isinstance(type_info, KLiteralTypeInfo):
         match type_info._lit_type:
-            case KLiteralType.INTEGER | KLiteralType.NUMBER:
+            case KLiteralType.INTEGER:
                 return "hash.svg"
+            case KLiteralType.NUMBER:
+                return "number.svg"
             case KLiteralType.DATE | KLiteralType.DATETIME:
                 return "calendar.svg"
             case KLiteralType.BOOLEAN:

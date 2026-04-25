@@ -39,6 +39,28 @@ if TYPE_CHECKING:
     from kira.kdata.kdata import KData
     from gui.qt_project import QTProject
 
+def get_icon_for_dtype(dtype) -> QIcon:
+    """Detects type of data and returns a themed icon."""
+    import numpy as np
+    from gui.utils import colors
+    from gui.utils.svg_utils import icon_from_svg, recolor_svg
+    
+    icon_name = "box.svg" # Default
+    
+    # Pandas/Numpy type checking
+    if np.issubdtype(dtype, np.integer):
+        icon_name = "hash.svg"
+    elif np.issubdtype(dtype, np.floating):
+        icon_name = "number.svg"
+    elif np.issubdtype(dtype, np.datetime64) or "datetime" in str(dtype):
+        icon_name = "calendar.svg"
+    elif dtype == "object" or dtype == "string" or str(dtype) == "string":
+        icon_name = "type.svg"
+    
+    # Use a subtle neutral color for header icons
+    svg = recolor_svg(icon_name, stroke_color=colors.text_tertiary)
+    return icon_from_svg(svg)
+
 
 # ---------------------------------------------------------------------------#
 #  1. Literal View (Scalar)                                                  #
@@ -236,19 +258,20 @@ class _ArrayTableView(QTableWidget):
                 font-size: {self._font_size}px;
                 padding: {style_system.spacing_xsmall};
                 border: none;
-                border-right: 1px solid {colors.border_light};
-                border-bottom: 1px solid {colors.border_light};
+                border-right: {style_system.border_thin} solid {colors.border_light};
+                border-bottom: {style_system.border_thin} solid {colors.border_light};
+                text-align: left;
             }}
             QTableCornerButton::section {{
                 background-color: {colors.bg_base};
                 border: none;
-                border-right: 1px solid {colors.border_light};
-                border-bottom: 1px solid {colors.border_light};
+                border-right: {style_system.border_thin} solid {colors.border_light};
+                border-bottom: {style_system.border_thin} solid {colors.border_light};
             }}
         """
         self.setStyleSheet(style)
         # Update row height
-        new_h = int(self._font_size * 2.2)
+        new_h = int(self._font_size * 1.6)
         self.verticalHeader().setDefaultSectionSize(new_h)
         self.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch) if self.columnCount() == 1 else None
 
@@ -300,6 +323,16 @@ class _ExcelTableView(QTableWidget):
         self.setHorizontalHeaderLabels(df.columns.tolist())
         self.setRowCount(len(df))
         
+        # Header setup: icons and alignment
+        self.horizontalHeader().setIconSize(QSize(16, 16))
+        self.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        for c in range(len(df.columns)):
+            col_name = str(df.columns[c])
+            dtype = df.dtypes[c]
+            item = QTableWidgetItem(col_name)
+            item.setIcon(get_icon_for_dtype(dtype))
+            self.setHorizontalHeaderItem(c, item)
+
         for r in range(len(df)):
             for c in range(len(df.columns)):
                 val = df.iloc[r, c]
@@ -309,7 +342,7 @@ class _ExcelTableView(QTableWidget):
                 self.setItem(r, c, item)
         
         self.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
-        self.verticalHeader().setDefaultSectionSize(28)
+        self.verticalHeader().setDefaultSectionSize(int(self._font_size * 1.6))
         
         # Initial styling and sizing
         self._update_style()
@@ -331,14 +364,15 @@ class _ExcelTableView(QTableWidget):
                 font-size: {self._font_size}px;
                 padding: {style_system.spacing_xsmall};
                 border: none;
-                border-right: 1px solid {colors.border_light};
-                border-bottom: 1px solid {colors.border_light};
+                border-right: {style_system.border_thin} solid {colors.border_light};
+                border-bottom: {style_system.border_thin} solid {colors.border_light};
+                text-align: left;
             }}
             QTableCornerButton::section {{
                 background-color: {colors.bg_base};
                 border: none;
-                border-right: 1px solid {colors.border_light};
-                border-bottom: 1px solid {colors.border_light};
+                border-right: {style_system.border_thin} solid {colors.border_light};
+                border-bottom: {style_system.border_thin} solid {colors.border_light};
             }}
         """
         self.setStyleSheet(style)
@@ -352,8 +386,8 @@ class _ExcelTableView(QTableWidget):
             else:
                 self._font_size = max(6, self._font_size - 1)
             
-            # Update row height (approx 2.5x font size)
-            new_h = int(self._font_size * 2.5)
+            # Update row height (approx 1.6x font size)
+            new_h = int(self._font_size * 1.6)
             self.verticalHeader().setDefaultSectionSize(new_h)
             
             self._update_style()
@@ -378,9 +412,9 @@ class _ExcelTableView(QTableWidget):
         max_rows = min(100, self.rowCount())
         
         for c in range(self.columnCount()):
-            # Start with header width
+            # Start with header width (include icon space)
             col_name = self.horizontalHeaderItem(c).text()
-            max_w = header_fm.horizontalAdvance(col_name) + 30 # + padding
+            max_w = header_fm.horizontalAdvance(col_name) + 48 # + padding + icon space
             
             # Check rows
             for r in range(max_rows):
