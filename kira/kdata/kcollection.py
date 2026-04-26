@@ -9,8 +9,15 @@ from kira.kexpections.missing_result import KMissingResult
 
 class KCollectionTypeInfo(KTypeInfo):
     def __init__(self, fields: dict[str, KTypeInfo] | None = None):
-        self._fields = fields
+        self._fields = fields if fields is not None else {}
 
+    @property
+    def fields(self) -> dict[str, KTypeInfo]:
+        return self._fields
+
+    @property
+    def field_names(self) -> list[str]:
+        return list(self._fields.keys())
 
     def match(self, value: KObject) -> bool:
         valid_value = (isinstance(value, KData) and
@@ -18,7 +25,7 @@ class KCollectionTypeInfo(KTypeInfo):
                        isinstance(value.value, KCollection)
                        )
 
-        if self._fields is None:
+        if not self._fields:
             return valid_value
 
         res = value.value

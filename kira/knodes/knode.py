@@ -15,6 +15,9 @@ from kira.kexpections.knode_exception import KNodeException, KNodeExceptionType
 from kira.ktypeinfo.any_type import KAnyTypeInfo
 
 
+from kira.ktypeinfo.variadic_type import KVariadicTypeInfo
+
+
 class KNodeType(enum.Enum):
     FUNCTION = 1
     WORKFLOW = 2
@@ -42,10 +45,16 @@ class KNode(KObject):
         self._input_types: list[KTypeInfo] = [KAnyTypeInfo() if isinstance(el, str) else el[1] for el in
                                               inputs]
 
+        # Validation: Only the last argument can be variadic
+        for i, t in enumerate(self._input_types):
+            if isinstance(t, KVariadicTypeInfo) and i != len(self._input_types) - 1:
+                raise ValueError(f"KNode '{name}': KVariadicTypeInfo must be the last input.")
+
         self._outputs_names = [el if isinstance(el, str) else el[0] for el in outputs]
         self._outputs_types: list[KTypeInfo] = [KAnyTypeInfo() if isinstance(el, str) else el[1] for el in
                                                 outputs]
         self._default_inputs = default_inputs or {}
+        self._has_variadic = bool(self._input_types) and isinstance(self._input_types[-1], KVariadicTypeInfo)
 
     def eval(self, context: KContext) -> KNode:
         context.register_object(self)
@@ -116,6 +125,10 @@ class KNode(KObject):
     @property
     def input_types(self) -> list[KTypeInfo]:
         return self._input_types
+
+    @property
+    def has_variadic(self) -> bool:
+        return self._has_variadic
 
     @property
     def output_names(self) -> list[str]:

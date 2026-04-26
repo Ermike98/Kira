@@ -1,6 +1,9 @@
 from kira.kdata.kdata import KDataType, KDataValue, KData
 from kira.core.kobject import KTypeInfo, KObject
-from kira.kdata.kliteral import KLiteralType
+from kira.kdata.kliteral import KLiteralType, KLiteralTypeInfo
+from kira.kdata.kcollection import KCollection
+from kira.kdata.kerrorvalue import KErrorValue
+from kira.ktypeinfo.any_type import KAnyTypeInfo
 
 import numpy as np
 import pandas as pd
@@ -8,26 +11,42 @@ import pandas.api.types as ptypes
 
 
 class KArrayTypeInfo(KTypeInfo):
-    def __init__(self, lit_type: KLiteralType):
-        self._lit_type = lit_type
+    def __init__(self, element_type: KTypeInfo):
+        self._element_type = element_type
+
+    @property
+    def element_type(self) -> KTypeInfo:
+        return self._element_type
 
     def match(self, value: KObject) -> bool:
-        return (isinstance(value, KData) and
-                bool(value) and
-                isinstance(value.value, KArray) and
-                ((self._lit_type == KLiteralType.ANY) or (self._lit_type == value.value.lit_type))
-                )
+        if not (isinstance(value, KData) and bool(value) and isinstance(value.value, KArray)):
+            return False
+
+        arr = value.value
+
+        if isinstance(self._element_type, KAnyTypeInfo):
+            return True
+
+        if isinstance(self._element_type, KLiteralTypeInfo):
+            return self._element_type._lit_type == KLiteralType.ANY or self._element_type._lit_type == arr.lit_type
+
+        # Generic element type check (e.g. KCollectionTypeInfo): validate every element
+        for i, el in enumerate(arr.value):
+            wrapped = KData(f"_el_{i}", el) if not isinstance(el, KData) else el
+            if not self._element_type.match(wrapped):
+                return False
+        return True
 
     def __repr__(self) -> str:
-        return f"KArrayTypeInfo({self._lit_type.name})"
+        return f"KArrayTypeInfo({self._element_type!r})"
 
-K_ARRAY_TYPE = KArrayTypeInfo(KLiteralType.ANY)
-K_ARRAY_INTEGER_TYPE = KArrayTypeInfo(KLiteralType.INTEGER)
-K_ARRAY_NUMBER_TYPE = KArrayTypeInfo(KLiteralType.NUMBER)
-K_ARRAY_STRING_TYPE = KArrayTypeInfo(KLiteralType.STRING)
-K_ARRAY_BOOLEAN_TYPE = KArrayTypeInfo(KLiteralType.BOOLEAN)
-K_ARRAY_DATE_TYPE = KArrayTypeInfo(KLiteralType.DATE)
-K_ARRAY_DATETIME_TYPE = KArrayTypeInfo(KLiteralType.DATETIME)
+K_ARRAY_TYPE = KArrayTypeInfo(KAnyTypeInfo())
+K_ARRAY_INTEGER_TYPE = KArrayTypeInfo(KLiteralTypeInfo(KLiteralType.INTEGER))
+K_ARRAY_NUMBER_TYPE = KArrayTypeInfo(KLiteralTypeInfo(KLiteralType.NUMBER))
+K_ARRAY_STRING_TYPE = KArrayTypeInfo(KLiteralTypeInfo(KLiteralType.STRING))
+K_ARRAY_BOOLEAN_TYPE = KArrayTypeInfo(KLiteralTypeInfo(KLiteralType.BOOLEAN))
+K_ARRAY_DATE_TYPE = KArrayTypeInfo(KLiteralTypeInfo(KLiteralType.DATE))
+K_ARRAY_DATETIME_TYPE = KArrayTypeInfo(KLiteralTypeInfo(KLiteralType.DATETIME))
 
 class KArray(KDataValue):
     def __init__(self, data, lit_type: KLiteralType = None):
@@ -68,8 +87,6 @@ class KArray(KDataValue):
             return KLiteralType.INTEGER
         if ptypes.is_float_dtype(data.dtype) or ptypes.is_numeric_dtype(data.dtype):
             return KLiteralType.NUMBER
-        if ptypes.is_string_dtype(data.dtype) or ptypes.is_object_dtype(data.dtype):
-            return KLiteralType.STRING
         if ptypes.is_datetime64_any_dtype(data.dtype):
             # Distinguish DATE vs DATETIME heuristically if needed, or default to DATETIME
             # For simplicity, if all times are midnight we could call it DATE,
@@ -77,6 +94,16 @@ class KArray(KDataValue):
             if hasattr(data.dt, "time") and (data.dropna().dt.time == pd.Timestamp("00:00:00").time()).all() and len(data.dropna()) > 0:
                 return KLiteralType.DATE
             return KLiteralType.DATETIME
+        if ptypes.is_object_dtype(data.dtype):
+            # Check if elements are KDataValue objects (e.g. KCollection, KErrorValue)
+            if len(data) > 0:
+                if isinstance(data.iloc[0], KErrorValue):
+                    return KLiteralType.ERROR
+                if isinstance(data.iloc[0], KCollection):
+                    return KLiteralType.COLLECTION
+            return KLiteralType.STRING
+        if ptypes.is_string_dtype(data.dtype):
+            return KLiteralType.STRING
         return KLiteralType.ANY
 
     @staticmethod

@@ -14,6 +14,7 @@ class KLiteralType(enum.Enum):
     BOOLEAN = 4
     DATE = 5
     DATETIME = 6
+    COLLECTION = 7
 
 
 class KLiteralTypeInfo(KTypeInfo):
@@ -26,6 +27,10 @@ class KLiteralTypeInfo(KTypeInfo):
                 isinstance(value.value, KLiteral) and
                 ((self._lit_type == KLiteralType.ANY) or (self._lit_type == value.value.lit_type))
                 )
+
+    @property
+    def lit_type(self) -> KLiteralType:
+        return self._lit_type
 
     def __repr__(self) -> str:
         return f"KLiteralTypeInfo({self._lit_type.name})"
