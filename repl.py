@@ -14,7 +14,41 @@ import logging
 from kproject.kevent import KEvent, KEventTypes
 from kproject.kevaluator import KVariableStatus
 from kira.kexpections.kgenericexception import KGenericException
+from kira.kdata.kdata import KData
+from kira.kdata.kliteral import KLiteral
+from kira.kdata.karray import KArray
+from kira.kdata.ktable import KTable
+from kira.kdata.kcollection import KCollection
 
+
+def display_value(name: str, obj):
+    """Display a KData value in a human-readable format."""
+    if not isinstance(obj, KData):
+        print(f"  {name} = {obj}")
+        return
+
+    if obj.error and not obj.value:
+        print(f"  {name} = ERROR: {obj.error}")
+        return
+
+    value = obj.value
+    if isinstance(value, KTable):
+        print(f"  {name} = Table ({value.value.shape[0]} rows × {value.value.shape[1]} cols)")
+        print(value.value.to_string(index=True, max_rows=20, max_cols=10))
+    elif isinstance(value, KArray):
+        print(f"  {name} = Array ({len(value.value)} elements, {value.lit_type.name})")
+        print(f"  {value.value.to_string(index=True, max_rows=20)}")
+    elif isinstance(value, KLiteral):
+        print(f"  {name} = {value.value} ({value.lit_type.name})")
+    elif isinstance(value, KCollection):
+        print(f"  {name} = Collection ({len(value.value)} items)")
+        for item in value.value:
+            print(f"    {item.name}: {item.value}")
+    else:
+        print(f"  {name} = {value}")
+
+    if obj.error:
+        print(f"  ⚠ Warning: {obj.error}")
 
 
 def run_repl():
@@ -71,16 +105,26 @@ def run_repl():
                         break
                     time.sleep(0.05)
                 
-                if project.get_status(name) == KVariableStatus.ERROR:
-                    print(f"Error: Failed to evaluate variable '{name}'.")
+                status = project.get_status(name)
+                if status == KVariableStatus.ERROR:
+                    try:
+                        value = project.get_value(name)
+                        display_value(name, value)
+                    except Exception:
+                        print(f"Error: Failed to evaluate variable '{name}'.")
+                elif status == KVariableStatus.READY:
+                    try:
+                        value = project.get_value(name)
+                        display_value(name, value)
+                    except Exception as e:
+                        print(f"Error: {e}")
                 
             else:
                 # Feature 2: Get variable (single symbol)
                 if line.isidentifier():
                     try:
                         value = project.get_value(line)
-
-                        log_kobject(value)
+                        display_value(line, value)
                     except Exception as e:
                         print(f"Error: {e}")
                 else:
