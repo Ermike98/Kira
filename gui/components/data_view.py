@@ -42,19 +42,20 @@ if TYPE_CHECKING:
 def get_icon_for_dtype(dtype) -> QIcon:
     """Detects type of data and returns a themed icon."""
     import numpy as np
+    import pandas as pd
     from gui.utils import colors
     from gui.utils.svg_utils import icon_from_svg, recolor_svg
     
     icon_name = "box.svg" # Default
     
     # Pandas/Numpy type checking
-    if np.issubdtype(dtype, np.integer):
+    if pd.api.types.is_integer_dtype(dtype):
         icon_name = "hash.svg"
-    elif np.issubdtype(dtype, np.floating):
+    elif pd.api.types.is_float_dtype(dtype):
         icon_name = "number.svg"
-    elif np.issubdtype(dtype, np.datetime64) or "datetime" in str(dtype):
+    elif pd.api.types.is_datetime64_any_dtype(dtype) or "datetime" in str(dtype):
         icon_name = "calendar.svg"
-    elif dtype == "object" or dtype == "string" or str(dtype) == "string":
+    elif pd.api.types.is_string_dtype(dtype) or dtype == "object" or str(dtype) == "string":
         icon_name = "type.svg"
     
     # Use a subtle neutral color for header icons
@@ -328,7 +329,7 @@ class _ExcelTableView(QTableWidget):
         self.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         for c in range(len(df.columns)):
             col_name = str(df.columns[c])
-            dtype = df.dtypes[c]
+            dtype = df.dtypes.iloc[c]
             item = QTableWidgetItem(col_name)
             item.setIcon(get_icon_for_dtype(dtype))
             self.setHorizontalHeaderItem(c, item)
