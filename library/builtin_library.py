@@ -18,6 +18,8 @@ from kira.knodes.kfunction import KFunction, kfunction
 from kira.ktypeinfo.any_type import KAnyTypeInfo
 from kira.ktypeinfo.union_type import KUnionTypeInfo
 from kira.library.node_library import KLibrary
+from kira.kdata.kcollection import KCollectionTypeInfo
+from kira.ktypeinfo.variadic_type import KVariadicTypeInfo
 
 # Create a library of basic math functions wrapping Numpy functions
 
@@ -349,3 +351,27 @@ def k_getitem(x_obj, indices_obj):
 
 
 k_builtin_library.register(k_getitem)
+
+# Table
+
+@kfunction(
+    inputs=[
+        ("columns", KVariadicTypeInfo(KCollectionTypeInfo({
+            "name": K_STRING_TYPE,
+            "values": K_ARRAY_TYPE
+        })))
+    ],
+    outputs=[("table", KTableTypeInfo())],
+    name="table",
+    use_values=False
+)
+def k_table(columns: KData):
+    arr = columns.value  # KArray of KCollections
+    data = {}
+    for col in arr.value:
+        name = col.get("name").value.value   # KLiteral -> numpy str
+        values = col.get("values").value.value  # KArray -> pd.Series
+        data[str(name)] = values
+    return [KTable(pd.DataFrame(data))]
+
+k_builtin_library.register(k_table)
