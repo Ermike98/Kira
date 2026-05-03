@@ -1,7 +1,11 @@
+# Font Families
+font_family_ui = "'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif"
+font_family_mono = "'JetBrains Mono', 'Segoe UI Mono', 'Consolas', monospace"
+
 # Font Sizes (Integers)
-font_xsmall_i = 12
-font_small_i = 14
-font_medium_i = 16
+font_xsmall_i = 11
+font_small_i = 13
+font_medium_i = 15
 font_large_i = 20
 font_xlarge_i = 24
 font_xxlarge_i = 32

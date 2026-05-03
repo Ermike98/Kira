@@ -247,6 +247,7 @@ class _ArrayTableView(QTableWidget):
         """Apply current font size to the table."""
         style = f"""
             QTableWidget {{ 
+                font-family: {style_system.font_family_ui};
                 font-size: {self._font_size}px; 
                 background-color: {colors.bg_panel};
                 alternate-background-color: {colors.bg_surface};
@@ -256,6 +257,7 @@ class _ArrayTableView(QTableWidget):
             QHeaderView::section {{
                 background-color: {colors.bg_base};
                 color: {colors.text_secondary};
+                font-family: {style_system.font_family_ui};
                 font-size: {self._font_size}px;
                 padding: {style_system.spacing_xsmall};
                 border: none;
@@ -353,6 +355,7 @@ class _ExcelTableView(QTableWidget):
         """Apply current font size to the table and its headers."""
         style = f"""
             QTableWidget {{ 
+                font-family: {style_system.font_family_ui};
                 font-size: {self._font_size}px; 
                 background-color: {colors.bg_panel};
                 alternate-background-color: {colors.bg_surface};
@@ -362,6 +365,7 @@ class _ExcelTableView(QTableWidget):
             QHeaderView::section {{
                 background-color: {colors.bg_base};
                 color: {colors.text_secondary};
+                font-family: {style_system.font_family_ui};
                 font-size: {self._font_size}px;
                 padding: {style_system.spacing_xsmall};
                 border: none;

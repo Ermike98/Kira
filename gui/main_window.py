@@ -227,8 +227,15 @@ def run_gui(project_or_kproject):
     from gui.qt_project import QTProject
     from kproject.kproject import KProject
     
+    # Enable High DPI scaling and crisp text rendering
+    if hasattr(Qt, 'HighDpiScaleFactorRoundingPolicy'):
+        QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+
     app = QApplication.instance() or QApplication(sys.argv)
     
+    from gui.utils.font_utils import load_fonts
+    load_fonts()
+
     if isinstance(project_or_kproject, KProject):
         project = QTProject(project_or_kproject)
     else:

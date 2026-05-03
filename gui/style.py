@@ -4,7 +4,7 @@ from gui import style_system
 LIGHT_THEME = f"""
 /* Base Colors and Typography */
 * {{
-    font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+    font-family: {style_system.font_family_ui};
     font-size: {style_system.font_small};
     color: {colors.text_primary};
 }}
@@ -265,6 +265,7 @@ QTableView {{
     border: none;
     selection-background-color: {colors.accent_light};
     selection-color: {colors.text_primary};
+    font-family: {style_system.font_family_mono};
     font-size: {style_system.font_medium};
     outline: none;
 }}
@@ -337,8 +338,9 @@ QScrollBar::handle:vertical:hover {{
 }}
 
 #LiteralValue {{
+    font-family: {style_system.font_family_mono};
     font-size: {style_system.font_xxxlarge};
-    font-weight: 300;
+    font-weight: 400;
     color: {colors.text_primary};
     letter-spacing: -1px;
 }}
@@ -417,6 +419,7 @@ QScrollBar::handle:vertical:hover {{
     border: {style_system.border_thin} solid {colors.border_light};
     border-radius: {style_system.radius_large};
     padding: {style_system.spacing_small} {style_system.spacing_medium};
+    font-family: {style_system.font_family_mono};
     font-size: {style_system.font_small};
     color: {colors.text_primary};
 }}
@@ -454,6 +457,7 @@ QScrollBar::handle:vertical:hover {{
 }}
 
 #StepFuncInput {{
+    font-family: {style_system.font_family_mono};
     font-size: {style_system.font_small};
     padding: {style_system.spacing_xxsmall} {style_system.spacing_xsmall};
     border: {style_system.border_thin} solid {colors.border_light};
@@ -495,6 +499,7 @@ QScrollBar::handle:vertical:hover {{
 }}
 
 #StepParamInput {{
+    font-family: {style_system.font_family_mono};
     font-size: {style_system.font_small};
     padding: {style_system.spacing_xsmall} {style_system.spacing_small};
     border: {style_system.border_thin} solid {colors.border_light};
