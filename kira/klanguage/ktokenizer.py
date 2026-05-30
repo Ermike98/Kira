@@ -180,12 +180,19 @@ def ktokenize(expression: str):
                     stop_idx = e_pos # Backtrack
             tokens.append(KToken(expression[start_idx:stop_idx], KTokenType.NUMBER))
             stop_idx -= 1
+        elif char == "#":
+            # Consume the rest of the line as a comment
+            while stop_idx < len(expression) and expression[stop_idx] != "\n":
+                stop_idx += 1
+            stop_idx -= 1
         else:
             start_idx = stop_idx
             while stop_idx < len(expression) and (expression[stop_idx].isalnum() or expression[stop_idx] == "_"):
                 stop_idx += 1
 
             word = expression[start_idx:stop_idx]
+            if not word:
+                raise SyntaxError(f"Unexpected character '{char}' at index {stop_idx}")
 
             if word == "and":
                 tokens.append(KToken(word, KTokenType.AND))

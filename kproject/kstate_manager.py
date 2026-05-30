@@ -63,7 +63,8 @@ class KStateManager(KManager):
         ast = kparse(tokens)
         assert isinstance(ast, AstAssignment), f"AddVariable: Expected AstAssignment, got {type(ast)}"
         
-        deps = find_dependencies(ast)
+        defined_symbols = set(self.variables.keys()) | self.data_names
+        deps = find_dependencies(ast, defined_symbols)
         kobj = kbuild_assignment(ast)
 
         # TODO: Fix this assertion, assignment might return a KData object or a KNodeInstance
@@ -85,7 +86,8 @@ class KStateManager(KManager):
         ast = kparse(tokens)
         assert isinstance(ast, AstWorkflow), f"AddWorkflow: Expected AstWorkflow, got {type(ast)}"
         
-        deps = find_dependencies(ast)
+        defined_symbols = set(self.variables.keys()) | self.data_names
+        deps = find_dependencies(ast, defined_symbols)
         kobj = kbuild_workflow(ast)
 
         assert isinstance(kobj, KNode), f"AddWorkflow: Expected KNode, got {type(kobj)}"
@@ -106,7 +108,8 @@ class KStateManager(KManager):
         ast = kparse(tokens)
         assert isinstance(ast, AstWorkflow), f"UpdateWorkflow: Expected AstWorkflow, got {type(ast)}"
         
-        deps = find_dependencies(ast)
+        defined_symbols = set(self.variables.keys()) | self.data_names
+        deps = find_dependencies(ast, defined_symbols)
         kobj = kbuild_workflow(ast)
 
         assert isinstance(kobj, KNode), f"UpdateWorkflow: Expected KNode, got {type(kobj)}"

@@ -1,9 +1,12 @@
+import logging
 from typing import TYPE_CHECKING
 from kira.core.kobject import KObject, KTypeInfo
 from kira.ktypeinfo.no_type import KNoTypeInfo
 
 if TYPE_CHECKING:
     from kira.core.kcontext import KContext
+
+logger = logging.getLogger("kira.library")
 
 class KLibrary(KObject):
     def __init__(self, name: str, objs: list[KObject] = None):
@@ -23,10 +26,10 @@ class KLibrary(KObject):
         return KNoTypeInfo()
 
     def eval(self, context: 'KContext') -> KObject:
-        print(f"Loading library '{self.name}'")
+        logger.debug(f"Loading library '{self.name}'")
         context.register_object(self)
         for obj in self._library.values():
-            print(f"Registering object '{obj.name}'")
+            logger.debug(f"Registering object '{obj.name}'")
             context.register_object(obj)
         return self
 

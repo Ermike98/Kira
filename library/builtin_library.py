@@ -61,7 +61,13 @@ def _k_add_impl(val1_obj, val2_obj):
     if is_val1_str and is_val2_str:
         if not isinstance(val1, pd.Series) and not isinstance(val2, pd.Series):
             return [KLiteral(np.char.add(val1, val2)[()], KLiteralType.STRING)]
-        result = np.char.add(val1, val2)
+        
+        if isinstance(val1, pd.Series) and isinstance(val2, pd.Series):
+            result = pd.Series([str(s1) + str(s2) for s1, s2 in zip(val1, val2)], dtype="string")
+        elif isinstance(val1, pd.Series):
+            result = val1.astype(str) + str(val2)
+        else:
+            result = str(val1) + val2.astype(str)
         return [KArray(result)]
     elif not is_val1_str and not is_val2_str:
         # Both numeric (or boolean)
@@ -127,8 +133,13 @@ def _k_multiply_impl(val1_obj, val2_obj):
                 return [
                     KErrorValue(KGenericException(f"Type mismatch: cannot multiply string by {type(int_val).__name__}"))]
         
-        # Vectorized multiplication
-        result = np.char.multiply(string_val, int_val)
+        # Vectorized multiplication: at least one is a pd.Series
+        if isinstance(string_val, pd.Series) and isinstance(int_val, pd.Series):
+            result = pd.Series([s * n for s, n in zip(string_val, int_val)], dtype="string")
+        elif isinstance(string_val, pd.Series):
+            result = string_val.astype(str) * int_val
+        else:
+            result = int_val.apply(lambda n: string_val * n).astype("string")
         return [KArray(result)]
 
     # Both numeric

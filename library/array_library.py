@@ -51,7 +51,7 @@ k_array_library.register(k_array_range)
     default_inputs={"ascending": KLiteral(True, KLiteralType.BOOLEAN)}
 )
 def k_array_sort(x_obj: KArray, ascending_: KLiteral):
-    return [KArray(x_obj.value.sort_value(ascending=ascending_.value), x_obj.lit_type)]
+    return [KArray(x_obj.value.sort_values(ascending=ascending_.value), x_obj.lit_type)]
 
 k_array_library.register(k_array_sort)
 

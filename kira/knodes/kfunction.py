@@ -60,6 +60,10 @@ def kfunction(
         @wraps(func)
         def wrapper(values: list[KData], context: KContext) -> list[KDataValue]:
             if use_values:
+                for val in values:
+                    if val.error:
+                        from kira.kdata.kerrorvalue import KErrorValue
+                        return [KErrorValue(val.error)]
                 values = [i.value for i in values]
 
             return func(*values, context=context) if use_context else func(*values)

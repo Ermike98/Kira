@@ -13,6 +13,8 @@ if TYPE_CHECKING:
 from kproject.kmanager import KManager
 from kproject.kevent import KEvent
 from kproject.kstatus_bus import KStatusBus, KStatusEvent, KVariableStatus
+from kira.kdata.kdata import KData
+from kira.kexpections.kgenericexception import KGenericException
 
 
 class KEvaluator(KManager):
@@ -125,14 +127,21 @@ class KEvaluator(KManager):
         status = KVariableStatus.READY
         result = None
 
-        if is_var:
-            state = self.state_manager.variables[name]
-            result = state.kobject.eval(self.context)
-            if not result:
-                status = KVariableStatus.ERROR
-        elif is_wf:
-            state = self.state_manager.workflows[name]
-            result = state.kobject.eval(self.context)
+        try:
+            if is_var:
+                state = self.state_manager.variables[name]
+                result = state.kobject.eval(self.context)
+                if not result:
+                    status = KVariableStatus.ERROR
+            elif is_wf:
+                state = self.state_manager.workflows[name]
+                result = state.kobject.eval(self.context)
+            
+        except Exception as e:
+            self._logger.error(f"Error evaluating variable '{name}': {e}", exc_info=True)
+            status = KVariableStatus.ERROR
+            result = KData(name, None, KGenericException(str(e)))
+            self.context.register_object(result)
 
         self._logger.info(f"Completed evaluation for: {name}")
         if result is not None:
