@@ -16,10 +16,11 @@ event through ``QTProject``.
 from __future__ import annotations
 
 import ast
+import os
 import re
 import logging
 from dataclasses import dataclass, field
-from typing import Optional, List, Tuple, TYPE_CHECKING
+from typing import Optional, List, Tuple, Callable, TYPE_CHECKING
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -28,7 +29,7 @@ from PySide6.QtWidgets import (
     QSizePolicy, QCompleter, QListView
 )
 from PySide6.QtCore import Qt, Signal, QSize, QTimer, QSortFilterProxyModel, QModelIndex, QMimeData
-from PySide6.QtGui import QFont, QStandardItemModel, QStandardItem, QDrag, QPixmap, QPainter
+from PySide6.QtGui import QFont, QStandardItemModel, QStandardItem, QDrag, QPixmap, QPainter, QIcon
 from gui.components.sidebar import get_icon_name_for_type, type_icon
 
 from gui.utils import colors
@@ -350,82 +351,69 @@ def _split_args(inner: str) -> List[str]:
 
 
 # ---------------------------------------------------------------------------#
-#  2. Data Classes                                                            #
+#  2. Data Classes & Constants                                                #
 # ---------------------------------------------------------------------------#
+
+OPERATOR_NAMES = {
+    "+", "-", "*", "/", "^", "==", "!=", ">", "<", ">=", "<=",
+    "and", "or", "not", "unary_-", "unary_!",
+    "identity",
+}
+
 
 @dataclass
 class PipelineStep:
-    """In-memory representation of one step in the pipeline."""
-    func_name: str = ""
-    param_names: List[str] = field(default_factory=list)
-    param_values: List[str] = field(default_factory=list)
-    param_defaults: List[Optional[str]] = field(default_factory=list)
+    """Single source of truth for a pipeline step."""
+    raw_expression: str = ""
 
 
 # ---------------------------------------------------------------------------#
-#  3. Source Card                                                             #
+#  3. Expression Card                                                         #
 # ---------------------------------------------------------------------------#
 
-class SourceCard(QFrame):
-    """Card for the pipeline source expression — visually distinct from steps."""
+class ExpressionCard(QFrame):
+    """Unified card for any pipeline expression (source or piped step).
 
-    source_changed = Signal()
+    Two modes: collapsed (raw text input) and expanded (func name + param rows).
+    """
 
-    def __init__(self, source_text: str = "", parent=None):
-        super().__init__(parent)
-        self.setObjectName("SourceCard")
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-
-        # Input
-        self.input = QLineEdit(source_text)
-        self.input.setObjectName("StepSourceInput")
-        self.input.setPlaceholderText("e.g. Sales_Table, 1250000, range(1, 10)")
-        self.input.editingFinished.connect(self.source_changed.emit)
-        layout.addWidget(self.input)
-
-    def set_completer_model(self, model: QStandardItemModel):
-        if not self.input.completer():
-            attach_word_completer(self.input, model)
-
-    @property
-    def value(self) -> str:
-        return self.input.text().strip()
-
-    @value.setter
-    def value(self, v: str):
-        self.input.setText(v)
-
-
-# ---------------------------------------------------------------------------#
-#  4. Step Card                                                               #
-# ---------------------------------------------------------------------------#
-
-class StepCard(QFrame):
-    """Card for a single function step in the pipeline."""
-
-    step_changed = Signal()
+    expression_changed = Signal()
     step_deleted = Signal()
-    func_name_changed = Signal(str, bool)  # name, should_focus_params
 
-    def __init__(self, step: PipelineStep, step_index: int = 0, parent=None):
+    def __init__(
+        self,
+        expression: str = "",
+        is_source: bool = False,
+        step_index: int = 0,
+        resolve_fn: Optional[Callable] = None,
+        parent=None
+    ):
         super().__init__(parent)
-        self.setObjectName("StepCard")
-        self._step = step
+        self.setObjectName("ExpressionCard")
+        self._is_source = is_source
         self._step_index = step_index
+        self._resolve_fn = resolve_fn or (lambda name: None)
+
+        self._expanded = False
+        self._expandable = False
+
+        # Derived state (valid when expanded)
+        self._func_name = ""
+        self._param_names: List[str] = []
+        self._param_values: List[str] = []
+        self._param_defaults: List[Optional[str]] = []
+        self._n_expected_params = 0
+
         self._param_inputs: List[QLineEdit] = []
         self._func_model: Optional[QStandardItemModel] = None
         self._mixed_model: Optional[QStandardItemModel] = None
+        self._suppress_signals = False
 
-        self._is_entering = False
+        # ---- Build UI ----
         self._main_layout = QVBoxLayout(self)
         self._main_layout.setContentsMargins(12, 10, 12, 10)
         self._main_layout.setSpacing(6)
 
-        # ---- Header ----
         header = QHBoxLayout()
         header.setSpacing(8)
 
@@ -433,168 +421,413 @@ class StepCard(QFrame):
         self._drag_handle = QLabel("≡")
         self._drag_handle.setObjectName("StepDragHandle")
         self._drag_handle.setCursor(Qt.OpenHandCursor)
+        if not is_source:
+            self._drag_handle.setFixedWidth(20)
         header.addWidget(self._drag_handle)
-
-        if not step.func_name:
+        if is_source:
             self._drag_handle.hide()
 
+        # Collapsed input
+        self._collapsed_input = QLineEdit(expression)
+        self._collapsed_input.setObjectName("StepCollapsedInput")
+        ph = "e.g. Sales_Table, load_csv(\"path\")" if is_source else "function name…"
+        self._collapsed_input.setPlaceholderText(ph)
+        self._collapsed_input.editingFinished.connect(self._on_collapsed_blur)
+        self._collapsed_input.returnPressed.connect(self._on_collapsed_return)
+        header.addWidget(self._collapsed_input)
 
-        # Function name (editable if empty, label if set)
-        if step.func_name:
-            self._func_label = QLabel(step.func_name)
-            self._func_label.setObjectName("StepFuncName")
-            header.addWidget(self._func_label)
-            # Use fixed index (1) as badge is removed
-            # self._func_label is at index 1 (after drag handle)
-            self._func_input = None
-        else:
-            self._func_input = QLineEdit()
-            self._func_input.setObjectName("StepFuncInput")
-            self._func_input.setPlaceholderText("function name…")
-            self._func_input.editingFinished.connect(self._on_func_name_entered)
-            self._func_input.returnPressed.connect(self._on_func_return)
-            header.addWidget(self._func_input)
-            # Index 1 (after drag handle)
-            self._func_label = None
+        # Func name input (expanded mode)
+        self._func_input = QLineEdit()
+        self._func_input.setObjectName("StepFuncInput")
+        self._func_input.setPlaceholderText("function name…")
+        self._func_input.editingFinished.connect(self._on_func_name_blur)
+        self._func_input.returnPressed.connect(self._on_func_name_return)
+        self._func_input.hide()
+        header.addWidget(self._func_input)
 
-        header.addStretch()
+        # Chevron toggle
+        self._expand_btn = QPushButton()
+        self._expand_btn.setObjectName("StepExpandButton")
+        self._expand_btn.setFixedSize(20, 20)
+        self._expand_btn.setCursor(Qt.PointingHandCursor)
+        self._expand_btn.clicked.connect(self._on_chevron_click)
+        header.addWidget(self._expand_btn)
 
-        # Delete button
+        # Delete / Reset button
         self._del_btn = QPushButton("×")
         self._del_btn.setObjectName("StepDeleteButton")
         self._del_btn.setFixedSize(24, 24)
         self._del_btn.setCursor(Qt.PointingHandCursor)
-        self._del_btn.clicked.connect(self.step_deleted.emit)
+        self._del_btn.clicked.connect(self._on_delete)
         header.addWidget(self._del_btn)
 
-        if not step.func_name:
+        if not expression and not is_source:
             self._del_btn.hide()
+            self._drag_handle.hide()
 
         self._main_layout.addLayout(header)
 
-        # ---- Parameter inputs ----
+        # Params container
         self._params_container = QWidget()
         self._params_layout = QVBoxLayout(self._params_container)
-        self._params_layout.setContentsMargins(0, 0, 0, 0)
+        # Shift parameter labels rightward by drag handle width + layout spacing (if non-source)
+        # and add an extra 5px to align with the text inset (padding + border) of the QLineEdit
+        left_margin = 5 if is_source else (20 + 8 + 5)
+        self._params_layout.setContentsMargins(left_margin, 4, 0, 0)
         self._params_layout.setSpacing(4)
         self._main_layout.addWidget(self._params_container)
+        self._params_container.hide()
 
-        self._build_param_inputs()
+        # Initial state
+        self._check_expandable()
+        self._update_chevron_icon()
 
-    def _build_param_inputs(self):
-        """Create text inputs for each parameter."""
-        # Clear existing
-        self._param_inputs.clear()
-        while self._params_layout.count():
-            item = self._params_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+        if expression and self._expandable:
+            self._set_expanded(True)
 
-        for name, value, default in zip(
-            self._step.param_names,
-            self._step.param_values,
-            self._step.param_defaults
-        ):
-            row = QHBoxLayout()
-            row.setSpacing(8)
+    # ---- Properties ----
 
-            lbl = QLabel(name)
-            lbl.setObjectName("StepParamLabel")
-            lbl.setFixedWidth(90)
-            lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            row.addWidget(lbl)
+    @property
+    def expression(self) -> str:
+        if self._expanded:
+            return self._recompose_from_params()
+        return self._collapsed_input.text().strip()
 
-            inp = QLineEdit(value)
-            inp.setObjectName("StepParamInput")
-            if default is not None:
-                inp.setPlaceholderText(f"default: {default}")
-            inp.editingFinished.connect(self._on_param_changed)
-            inp.returnPressed.connect(lambda i=len(self._param_inputs): self._on_param_return_pressed(i))
-            row.addWidget(inp)
+    @property
+    def is_blank(self) -> bool:
+        return not self._collapsed_input.text().strip() and not self._expanded
 
-            self._param_inputs.append(inp)
-            self._params_layout.addLayout(row)
+    @property
+    def step_index(self) -> int:
+        return self._step_index
 
-        # Re-apply model to new param inputs if available
-        if self._mixed_model:
-            self.set_models(self._func_model, self._mixed_model)
+    @step_index.setter
+    def step_index(self, v: int):
+        self._step_index = v
 
-    def _on_func_return(self):
-        self._is_entering = True
+    # ---- Public API ----
 
-    def _on_func_name_entered(self):
-        """User typed a function name via Blur or Enter."""
-        if self._func_input:
-            name = self._func_input.text().strip()
-            if name:
-                self.func_name_changed.emit(name, self._is_entering)
-        self._is_entering = False
-
-    def _on_param_return_pressed(self, index: int):
-        """User pressed enter in a parameter input."""
-        if index < len(self._param_inputs) - 1:
-            self._param_inputs[index + 1].setFocus()
-            self._param_inputs[index + 1].selectAll()
+    def set_expression(self, expr: str, auto_expand: bool = True):
+        self._suppress_signals = True
+        self._collapsed_input.setText(expr)
+        self._check_expandable()
+        self._update_chevron_icon()
+        if auto_expand and expr and self._expandable:
+            self._set_expanded(True)
         else:
-            self.step_changed.emit()
+            self._set_expanded(False)
+        self._suppress_signals = False
+
+    def set_models(self, func_model: QStandardItemModel, mixed_model: QStandardItemModel):
+        self._func_model = func_model
+        self._mixed_model = mixed_model
+        if not self._collapsed_input.completer():
+            attach_word_completer(self._collapsed_input, mixed_model)
+        if not self._func_input.completer():
+            attach_word_completer(self._func_input, func_model)
+        for inp in self._param_inputs:
+            if not inp.completer():
+                attach_word_completer(inp, mixed_model)
 
     def focus_first_param(self):
         if self._param_inputs:
             self._param_inputs[0].setFocus()
             self._param_inputs[0].selectAll()
+        elif self._expanded:
+            self._func_input.setFocus()
+
+    # ---- Internal: Expandability ----
+
+    def _check_expandable(self):
+        text = self._collapsed_input.text().strip()
+        if not text:
+            self._expandable = False
+            return
+        func_name, _ = parse_step_string(text)
+        if not func_name or func_name in OPERATOR_NAMES:
+            self._expandable = False
+            return
+        result = self._resolve_fn(func_name)
+        self._expandable = result is not None
+
+    # ---- Internal: Expand / Collapse ----
+
+    def _set_expanded(self, expanded: bool):
+        if expanded and not self._expandable:
+            return
+        self._expanded = expanded
+
+        if expanded:
+            text = self._collapsed_input.text().strip()
+            func_name, arg_strs = parse_step_string(text)
+            self._func_name = func_name
+
+            result = self._resolve_fn(func_name)
+            if result:
+                all_names, defaults_dict = result
+                # For piped steps hide the first param
+                if not self._is_source and len(all_names) > 0:
+                    display_names = all_names[1:]
+                else:
+                    display_names = list(all_names)
+
+                self._param_names = list(display_names)
+                self._n_expected_params = len(self._param_names)
+                self._param_defaults = [defaults_dict.get(n) for n in self._param_names]
+
+                self._param_values = []
+                for i in range(len(self._param_names)):
+                    if i < len(arg_strs):
+                        self._param_values.append(arg_strs[i])
+                    else:
+                        self._param_values.append("")
+
+                # Extra args beyond expected
+                if len(arg_strs) > len(self._param_names):
+                    for extra_val in arg_strs[len(self._param_names):]:
+                        self._param_names.append("")
+                        self._param_values.append(extra_val)
+                        self._param_defaults.append(None)
+
+            self._collapsed_input.hide()
+            self._func_input.setText(func_name)
+            self._func_input.show()
+            self._build_param_inputs()
+            self._params_container.show()
         else:
-            # If no params, we probably already committed via func_name_changed
-            # but we can emit step_changed just in case to ensure project sync
-            self.step_changed.emit()
+            if self._func_name:
+                self._collapsed_input.setText(self._recompose_from_params())
+            self._func_input.hide()
+            self._collapsed_input.show()
+            self._params_container.hide()
 
-    def focus_param(self, index: int):
-        if 0 <= index < len(self._param_inputs):
-            self._param_inputs[index].setFocus()
-            self._param_inputs[index].selectAll()
+        self.setProperty("expanded", str(expanded).lower())
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self._update_chevron_icon()
 
-    def _on_param_changed(self):
-        """Sync param values back into the step model and emit."""
-        for i, inp in enumerate(self._param_inputs):
-            if i < len(self._step.param_values):
-                self._step.param_values[i] = inp.text().strip()
-        self.step_changed.emit()
+    def _update_chevron_icon(self):
+        icons_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "icons")
+        if self._expanded:
+            icon_path = os.path.join(icons_dir, "chevron-down.svg")
+        else:
+            icon_path = os.path.join(icons_dir, "chevron-right.svg")
+        self._expand_btn.setIcon(QIcon(icon_path))
 
-    def update_step(self, step: PipelineStep, index: int):
-        """Replace the displayed step and rebuild param inputs."""
-        self._step = step
-        self._step_index = index
+        can_interact = self._expandable or self._expanded
+        self._expand_btn.setEnabled(can_interact)
+        self._expand_btn.setProperty("expandable", "true" if can_interact else "false")
+        self._expand_btn.style().unpolish(self._expand_btn)
+        self._expand_btn.style().polish(self._expand_btn)
 
-        # Replace function name label
-        if self._func_label:
-            self._func_label.setText(step.func_name)
-        elif self._func_input and step.func_name:
-            # Switch from input to label
-            self._func_input.setVisible(False)
-            self._func_label = QLabel(step.func_name)
-            self._func_label.setObjectName("StepFuncName")
-            # Insert after badge
-            header_layout = self._main_layout.itemAt(0).layout()
-            # Insert after drag handle (index 0)
-            header_layout.insertWidget(1, self._func_label)
+    def _on_chevron_click(self):
+        if self._expanded:
+            self._set_expanded(False)
+            self._check_expandable()
+            self._update_chevron_icon()
+            self._emit_change()
+        elif self._expandable:
+            self._set_expanded(True)
 
-        self._build_param_inputs()
+    # ---- Internal: Build Params ----
 
-    def set_models(self, func_model: QStandardItemModel, mixed_model: QStandardItemModel):
-        self._func_model = func_model
-        self._mixed_model = mixed_model
+    def _build_param_inputs(self):
+        self._param_inputs.clear()
+        while self._params_layout.count():
+            item = self._params_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+            elif item.layout():
+                sub = item.layout()
+                while sub.count():
+                    si = sub.takeAt(0)
+                    if si.widget():
+                        si.widget().deleteLater()
 
-        if self._func_input:
-            if not self._func_input.completer():
-                attach_word_completer(self._func_input, func_model)
+        # Calculate dynamic width for labels based on the longest param name
+        max_label_width = 0
+        fm = self.fontMetrics()
+        for name in self._param_names:
+            if name:
+                w = fm.horizontalAdvance(name)
+                if w > max_label_width:
+                    max_label_width = w
+        if max_label_width > 0:
+            max_label_width += 12  # Add padding for visual breathing room
 
-        for inp in self._param_inputs:
-            if not inp.completer():
-                attach_word_completer(inp, mixed_model)
+        for i, (name, value, default) in enumerate(zip(
+            self._param_names, self._param_values, self._param_defaults
+        )):
+            is_extra = i >= self._n_expected_params
+            row = QHBoxLayout()
+            row.setSpacing(8)
+
+            if name:
+                lbl = QLabel(name)
+                lbl.setObjectName("StepParamLabel")
+                lbl.setFixedWidth(max_label_width)
+                lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                row.addWidget(lbl)
+            else:
+                spacer = QWidget()
+                spacer.setFixedWidth(max_label_width)
+                row.addWidget(spacer)
+
+            inp = QLineEdit(value)
+            inp.setObjectName("StepParamInputExtra" if is_extra else "StepParamInput")
+            if default is not None and not is_extra:
+                inp.setPlaceholderText(f"default: {default}")
+            inp.editingFinished.connect(lambda idx=i: self._on_param_blur(idx))
+            inp.returnPressed.connect(lambda idx=i: self._on_param_return(idx))
+            row.addWidget(inp)
+
+            self._param_inputs.append(inp)
+            self._params_layout.addLayout(row)
+
+        if self._mixed_model:
+            for inp in self._param_inputs:
+                if not inp.completer():
+                    attach_word_completer(inp, self._mixed_model)
+
+    # ---- Internal: Event Handlers ----
+
+    def _on_collapsed_return(self):
+        text = self._collapsed_input.text().strip()
+        if not text:
+            return
+        self._check_expandable()
+        self._update_chevron_icon()
+        if self._expandable:
+            self._set_expanded(True)
+            QTimer.singleShot(0, self.focus_first_param)
+        else:
+            self._emit_change()
+
+    def _on_collapsed_blur(self):
+        self._check_expandable()
+        self._update_chevron_icon()
+        self._emit_change()
+
+    def _on_func_name_return(self):
+        new_name = self._func_input.text().strip()
+        if new_name and new_name != self._func_name:
+            self._change_function(new_name)
+        elif self._param_inputs:
+            self._param_inputs[0].setFocus()
+            self._param_inputs[0].selectAll()
+
+    def _on_func_name_blur(self):
+        new_name = self._func_input.text().strip()
+        if new_name and new_name != self._func_name:
+            self._change_function(new_name)
+
+    def _change_function(self, new_name: str):
+        _, old_args = parse_step_string(self._recompose_from_params())
+        result = self._resolve_fn(new_name)
+
+        if result and new_name not in OPERATOR_NAMES:
+            self._func_name = new_name
+            all_names, defaults_dict = result
+            if not self._is_source and len(all_names) > 0:
+                display_names = all_names[1:]
+            else:
+                display_names = list(all_names)
+
+            self._param_names = list(display_names)
+            self._n_expected_params = len(self._param_names)
+            self._param_defaults = [defaults_dict.get(n) for n in self._param_names]
+
+            self._param_values = []
+            for i in range(len(self._param_names)):
+                if i < len(old_args):
+                    self._param_values.append(old_args[i])
+                else:
+                    self._param_values.append("")
+
+            if len(old_args) > len(self._param_names):
+                for extra_val in old_args[len(self._param_names):]:
+                    self._param_names.append("")
+                    self._param_values.append(extra_val)
+                    self._param_defaults.append(None)
+
+            self._func_input.setText(new_name)
+            self._build_param_inputs()
+            self._emit_change()
+            QTimer.singleShot(0, self.focus_first_param)
+        else:
+            self._func_name = new_name
+            recomposed = self._recompose_from_params()
+            self._collapsed_input.setText(recomposed)
+            self._func_name = ""
+            self._set_expanded(False)
+            self._check_expandable()
+            self._update_chevron_icon()
+            self._emit_change()
+
+    def _on_param_blur(self, index: int):
+        if index < len(self._param_inputs):
+            value = self._param_inputs[index].text().strip()
+            # Extra arg cleared -> remove it
+            if index >= self._n_expected_params and not value:
+                self._param_names.pop(index)
+                self._param_values.pop(index)
+                self._param_defaults.pop(index)
+                self._build_param_inputs()
+                self._emit_change()
+            elif index < len(self._param_values):
+                self._param_values[index] = value
+                self._emit_change()
+
+    def _on_param_return(self, index: int):
+        if index < len(self._param_inputs) and index < len(self._param_values):
+            self._param_values[index] = self._param_inputs[index].text().strip()
+        if index < len(self._param_inputs) - 1:
+            self._param_inputs[index + 1].setFocus()
+            self._param_inputs[index + 1].selectAll()
+        else:
+            self._emit_change()
+
+    def _on_delete(self):
+        if self._is_source:
+            self._collapsed_input.setText("")
+            self._set_expanded(False)
+            self._func_name = ""
+            self._param_names.clear()
+            self._param_values.clear()
+            self._param_defaults.clear()
+            self._check_expandable()
+            self._update_chevron_icon()
+            self._emit_change()
+        else:
+            self.step_deleted.emit()
+
+    def _emit_change(self):
+        if not self._suppress_signals:
+            self.expression_changed.emit()
+
+    # ---- Internal: Recomposition ----
+
+    def _recompose_from_params(self) -> str:
+        if not self._func_name:
+            return ""
+        args = []
+        for i, val in enumerate(self._param_values):
+            if val:
+                args.append(val)
+            elif i < self._n_expected_params:
+                args.append("")
+        while args and not args[-1]:
+            args.pop()
+        if args:
+            return f"{self._func_name}({', '.join(args)})"
+        return f"{self._func_name}()"
+
+    # ---- Drag support ----
 
     def mousePressEvent(self, event):
-        if (event.button() == Qt.LeftButton and 
-            hasattr(self, "_drag_handle") and
-            self._drag_handle.isVisible() and 
+        if (event.button() == Qt.LeftButton and
+            not self._is_source and
+            self._drag_handle.isVisible() and
             self._drag_handle.geometry().contains(event.pos())):
             self._start_drag()
         super().mousePressEvent(event)
@@ -604,20 +837,14 @@ class StepCard(QFrame):
         mime = QMimeData()
         mime.setData("application/x-kira-step-index", str(self._step_index).encode())
         drag.setMimeData(mime)
-        
         pixmap = self.grab()
         drag.setPixmap(pixmap)
         drag.setHotSpot(self._drag_handle.geometry().center())
-        
         drag.exec(Qt.MoveAction)
-
-    @property
-    def step(self) -> PipelineStep:
-        return self._step
 
 
 # ---------------------------------------------------------------------------#
-#  5. Pipeline Arrow (visual connector)                                       #
+#  4. Pipeline Arrow (visual connector)                                       #
 # ---------------------------------------------------------------------------#
 
 class _PipelineArrow(QWidget):
@@ -635,15 +862,15 @@ class _PipelineArrow(QWidget):
 
 
 # ---------------------------------------------------------------------------#
-#  6. Step Editor Panel                                                       #
+#  5. Step Editor Panel                                                     #
 # ---------------------------------------------------------------------------#
+
 
 class StepEditorPanel(QWidget):
     """Full pipeline editor panel.
 
-    Shows a SourceCard + a list of StepCards with drag-and-drop reordering.
-    On any edit, recomposes the code, validates parsing, and fires an
-    ``AddVariable`` event.
+    Shows a list of ExpressionCards with drag-and-drop reordering.
+    Index 0 is the source, the rest are piped steps.
     """
 
     def __init__(self, project: QTProject, variable_name: str, parent=None):
@@ -652,10 +879,9 @@ class StepEditorPanel(QWidget):
         self.variable_name = variable_name
         self.setObjectName("StepEditorPanel")
 
-        self._source_text: str = ""
         self._steps: List[PipelineStep] = []
-        self._step_cards: List[StepCard] = []
-        self._committing = False  # re-entrance guard
+        self._cards: List[ExpressionCard] = []
+        self._committing = False
         self._context_state: dict = {}
         self._func_model = QStandardItemModel()
         self._mixed_model = QStandardItemModel()
@@ -665,7 +891,6 @@ class StepEditorPanel(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
-
 
         # Header
         self._header = QWidget()
@@ -695,11 +920,6 @@ class StepEditorPanel(QWidget):
         scroll.setStyleSheet(f"QScrollArea {{ background-color: {colors.bg_base}; border: none; }}")
         self._content.setStyleSheet(f"#StepEditorContent {{ background-color: {colors.bg_base}; }}")
 
-        # Source card (always present)
-        self._source_card = SourceCard("")
-        self._source_card.source_changed.connect(self._on_commit)
-        self._content_layout.addWidget(self._source_card)
-
         # Steps container
         self._steps_widget = QWidget()
         self._steps_layout = QVBoxLayout(self._steps_widget)
@@ -707,14 +927,10 @@ class StepEditorPanel(QWidget):
         self._steps_layout.setSpacing(0)
         self._steps_layout.setAlignment(Qt.AlignTop)
         self._content_layout.addWidget(self._steps_widget)
-        
-        # Tighten margin between Source and Steps
-        self._steps_layout.setContentsMargins(0, 4, 0, 0)
 
         self._content_layout.addStretch()
 
-        # Reorder indicator (a thin line showing where a drop will occur)
-        # Parented to 'self' so we can move it freely over the layout
+        # Reorder indicator
         self._reorder_indicator = QFrame(self)
         self._reorder_indicator.setObjectName("ReorderIndicator")
         self._reorder_indicator.setFixedHeight(2)
@@ -726,81 +942,63 @@ class StepEditorPanel(QWidget):
         # ---- Initial load ----
         self.project.history_updated.connect(self._refresh_autocomplete_cache)
         self.project.status_changed.connect(self._on_status_changed)
-        
+
         self._refresh_autocomplete_cache()
         self._load_from_project()
-        
-        # Trigger initial status update with a small delay to allow visual transition from grey
+
         QTimer.singleShot(200, lambda: self._on_status_changed(self.project.kproject.get_all_statuses()))
 
     # ---- Public API ----
 
     def refresh(self):
-        """Reload from the project state (e.g. after undo/redo)."""
         self._load_from_project()
 
     def _on_status_changed(self, statuses: dict):
-        """Update visual feedback based on the variable's evaluation status."""
         status_obj = statuses.get(self.variable_name)
         if not status_obj:
             return
-
-        status_str = status_obj.name # WAITING, PROCESSING, READY, ERROR
-        
-        # Check for logic errors (computed but empty/invalid)
+        status_str = status_obj.name
         if status_str == "READY":
             kdata = self.project.get_value(self.variable_name)
             if not bool(kdata):
                 status_str = "ERROR"
-
         if status_str == self._status:
             return
-            
         self._status = status_str
         self._header.setProperty("status", status_str)
         self._title.setProperty("status", status_str)
-        
-        # Refresh styling
         self._header.style().unpolish(self._header)
         self._header.style().polish(self._header)
         self._title.style().unpolish(self._title)
         self._title.style().polish(self._title)
-        
-    def _refresh_autocomplete_cache(self):
-        """Update the completer models when the history/context changes."""
-        self._context_state = self.project.get_context_state()
 
+    def _refresh_autocomplete_cache(self):
+        self._context_state = self.project.get_context_state()
         self._func_model.clear()
         self._mixed_model.clear()
 
-        # Combine nodes + library for function list
         func_objects = self._context_state.get("node", []) + self._context_state.get("library", [])
-        
         from kira.knodes.knode import KNode
-        
+
         func_items = []
         for obj in func_objects:
             if not re.match(r'^[a-zA-Z_]\w*$', obj.name):
                 continue
-                
             display_name = obj.name
             insert_val = f"{obj.name}()"
-            
             if isinstance(obj, KNode) and hasattr(obj, "input_names"):
                 if obj.input_names:
                     display_name = f"{obj.name}({', '.join(obj.input_names)})"
 
             item = QStandardItem(display_name)
-            item.setData(obj.name, Qt.UserRole)  # Keep plain name for func_input
-            item.setData(2, Qt.UserRole + 1) # Priority 2 for functions
-            
+            item.setData(obj.name, Qt.UserRole)
+            item.setData(2, Qt.UserRole + 1)
             icon_name = get_icon_name_for_type(obj.type)
             if icon_name == "database.svg":
                 icon_name = "code.svg"
             item.setIcon(type_icon(icon_name))
             func_items.append(item)
-            
-            # Also append to mixed model
+
             item_copy = QStandardItem(display_name)
             item_copy.setData(insert_val, Qt.UserRole)
             item_copy.setData(2, Qt.UserRole + 1)
@@ -810,17 +1008,15 @@ class StepEditorPanel(QWidget):
         for item in sorted(func_items, key=lambda i: i.text()):
             self._func_model.appendRow(item)
 
-        # Add data variables to mixed model
         var_items = []
         for obj in self._context_state.get("data", []):
             item = QStandardItem(obj.name)
             item.setData(obj.name, Qt.UserRole)
-            item.setData(1, Qt.UserRole + 1) # Priority 1 for data
+            item.setData(1, Qt.UserRole + 1)
             icon_name = get_icon_name_for_type(obj.type)
             item.setIcon(type_icon(icon_name))
             var_items.append(item)
-            
-        # Add constants
+
         for const_val in ["true", "false"]:
             item = QStandardItem(const_val)
             item.setData(const_val, Qt.UserRole)
@@ -831,148 +1027,81 @@ class StepEditorPanel(QWidget):
         for item in sorted(var_items, key=lambda i: i.text()):
             self._mixed_model.appendRow(item)
 
-        # Apply to live widgets
-        if hasattr(self, "_source_card") and hasattr(self._source_card, "set_completer_model"):
-            self._source_card.set_completer_model(self._mixed_model)
-        
-        if hasattr(self, "_step_cards"):
-            for card in self._step_cards:
-                if hasattr(card, "set_models"):
-                    card.set_models(self._func_model, self._mixed_model)
+        if hasattr(self, "_cards"):
+            for card in self._cards:
+                card.set_models(self._func_model, self._mixed_model)
 
     # ---- Internal: Loading ----
 
     def _load_from_project(self):
-        """Read the variable's code from KStateManager and populate the editor."""
         sm = self.project.kproject.state_manager
         if self.variable_name not in sm.variables:
             return
 
         code = sm.variables[self.variable_name].code
         target, source, step_strs = decompose_variable_code(code)
-        self._source_text = source
-        self._source_card.value = source
 
-        # Build PipelineStep objects
-        self._steps.clear()
+        self._steps = [PipelineStep(raw_expression=source)]
         for s in step_strs:
-            func_name, arg_strs = parse_step_string(s)
-            # Look up parameter names from the function definition
-            param_names, param_defaults = self._lookup_func_params(func_name)
+            self._steps.append(PipelineStep(raw_expression=s))
 
-            # Match arg_strs to param_names (skip first = piped input)
-            step = PipelineStep(
-                func_name=func_name,
-                param_names=param_names,
-                param_values=self._match_args(arg_strs, param_names, param_defaults),
-                param_defaults=[param_defaults.get(n) for n in param_names],
-            )
-            self._steps.append(step)
+        # Trailing empty step
+        self._steps.append(PipelineStep())
 
-        # Ensure trailing empty step
-        if not self._steps or self._steps[-1].func_name:
-            self._steps.append(PipelineStep())
+        self._rebuild_cards()
 
-        self._rebuild_step_cards()
-
-    def _lookup_func_params(self, func_name: str) -> Tuple[List[str], dict]:
-        """Look up a function's parameter names (minus the first piped arg) and defaults.
-
-        Returns (param_names_without_first, {name: default_str}).
-        """
+    def _resolve_function(self, func_name: str) -> Optional[Tuple[List[str], dict]]:
+        """Look up function params. Returns None if not expandable."""
+        if not func_name or func_name in OPERATOR_NAMES:
+            return None
         from kira.knodes.knode import KNode
-
         obj = self.project.kproject.context.get_object(func_name)
         if not isinstance(obj, KNode):
-            return [], {}
-
-        # Skip first input (the piped argument)
-        all_names = obj.input_names
-        param_names = all_names[1:] if len(all_names) > 1 else []
-
-        # Default values
+            return None
+        param_names = list(obj.input_names)
         defaults = {}
         for k, v in obj.default_inputs.items():
             if k in param_names:
                 defaults[k] = str(v.value) if hasattr(v, "value") else str(v)
-
         return param_names, defaults
-
-    @staticmethod
-    def _match_args(
-        arg_strs: List[str],
-        param_names: List[str],
-        param_defaults: dict
-    ) -> List[str]:
-        """Align provided argument strings to parameter names."""
-        values: List[str] = []
-        for i, name in enumerate(param_names):
-            if i < len(arg_strs):
-                values.append(arg_strs[i])
-            elif name in param_defaults:
-                values.append("")  # leave blank to use default
-            else:
-                values.append("")
-        return values
 
     # ---- Internal: Rebuilding UI ----
 
-    def _rebuild_step_cards(self):
-        """Clear and rebuild all StepCard widgets from self._steps."""
-        # Clear existing cards
-        self._step_cards.clear()
+    def _rebuild_cards(self):
+        self._cards.clear()
         while self._steps_layout.count():
             item = self._steps_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
         for i, step in enumerate(self._steps):
-            # Arrow connector
-            arrow = _PipelineArrow()
-            self._steps_layout.addWidget(arrow)
+            is_source = (i == 0)
 
-            card = StepCard(step, step_index=i)
-            card.step_changed.connect(self._on_commit)
+            if i > 0:
+                arrow = _PipelineArrow()
+                self._steps_layout.addWidget(arrow)
+
+            card = ExpressionCard(
+                expression=step.raw_expression,
+                is_source=is_source,
+                step_index=i,
+                resolve_fn=self._resolve_function,
+            )
+            card.expression_changed.connect(self._on_commit)
             card.step_deleted.connect(lambda idx=i: self._on_delete_step(idx))
-            card.func_name_changed.connect(lambda name, focus, idx=i: self._on_func_name_set(idx, name, focus))
             card.set_models(self._func_model, self._mixed_model)
-            self._step_cards.append(card)
+            self._cards.append(card)
             self._steps_layout.addWidget(card)
 
     # ---- Internal: User Actions ----
 
-
     def _on_delete_step(self, index: int):
-        """Remove step at index and commit."""
         if 0 <= index < len(self._steps):
             self._steps.pop(index)
-            # Ensure we still have an empty step if we just deleted the only one
-            if not self._steps or self._steps[-1].func_name:
+            if not self._steps or self._steps[-1].raw_expression:
                 self._steps.append(PipelineStep())
-            self._rebuild_step_cards()
+            self._rebuild_cards()
             self._on_commit()
-
-    def _on_func_name_set(self, index: int, func_name: str, should_focus_params: bool = False):
-        """User entered a function name for a blank step — populate params."""
-        if 0 <= index < len(self._steps):
-            param_names, param_defaults = self._lookup_func_params(func_name)
-            self._steps[index] = PipelineStep(
-                func_name=func_name,
-                param_names=param_names,
-                param_values=[""] * len(param_names),
-                param_defaults=[param_defaults.get(n) for n in param_names],
-            )
-            # Add new trailing empty step if we just filled the last one
-            if index == len(self._steps) - 1:
-                self._steps.append(PipelineStep())
-
-            self._rebuild_step_cards()
-            
-            # Focus transition: if requested (via Enter press)
-            # we focus the first param of the rebuilt card.
-            if should_focus_params and 0 <= index < len(self._step_cards):
-                # Use singleShot to wait for layout/widget creation
-                QTimer.singleShot(0, self._step_cards[index].focus_first_param)
 
     # ---- Internal: Drag and Drop ----
 
@@ -985,7 +1114,6 @@ class StepEditorPanel(QWidget):
             data = event.mimeData().data("application/x-kira-step-index")
             source_idx = int(data.data().decode())
             pos = event.position().toPoint()
-            # Calculate where to show the indicator
             self._update_reorder_indicator(pos, source_idx)
             event.acceptProposedAction()
 
@@ -996,112 +1124,83 @@ class StepEditorPanel(QWidget):
         if event.mimeData().hasFormat("application/x-kira-step-index"):
             data = event.mimeData().data("application/x-kira-step-index")
             source_idx = int(data.data().decode())
-            
-            # Find target index from drop position
             pos = event.position().toPoint()
             target_idx = self._calculate_drop_index(pos)
-            
-            # Perform move if it's a real change
-            # (Note: dropping a step at its current position or 
-            #  one position after shouldn't trigger a move)
             if source_idx != target_idx and source_idx != target_idx - 1:
                 self._move_step(source_idx, target_idx)
-            
             self._reorder_indicator.hide()
             event.acceptProposedAction()
 
     def _update_reorder_indicator(self, pos, source_idx: int):
-        """Place the indicator line between cards based on Y position."""
         target_idx = self._calculate_drop_index(pos)
-        
-        # Hide indicator if dropping here results in no move (no-op zone)
         if target_idx == source_idx or target_idx == source_idx + 1:
             self._reorder_indicator.hide()
             return
-
         self._reorder_indicator.show()
-        
         from PySide6.QtCore import QPoint
-
-        if target_idx < len(self._step_cards):
-            card = self._step_cards[target_idx]
-            # card's top in panel coordinates
+        if target_idx < len(self._cards):
+            card = self._cards[target_idx]
             y = card.mapTo(self, QPoint(0, 0)).y()
         else:
-            # Drop after the last step card
-            if self._step_cards:
-                last_card = self._step_cards[-1]
+            if self._cards:
+                last_card = self._cards[-1]
                 y = last_card.mapTo(self, QPoint(0, 0)).y() + last_card.height()
             else:
                 y = self._steps_widget.mapTo(self, QPoint(0, 0)).y()
-
         self._reorder_indicator.move(12, y - 1)
         self._reorder_indicator.setFixedWidth(self.width() - 24)
         self._reorder_indicator.raise_()
 
     def _calculate_drop_index(self, pos):
-        """Find the insertion index based on current mouse position."""
-        # Map pos to _steps_widget coordinates
         local_pos = self._steps_widget.mapFrom(self, pos)
         y = local_pos.y()
-        
-        # Iterate through cards and find the closest gap
-        for i, card in enumerate(self._step_cards):
+        # Skip source card (index 0) — not droppable before it
+        for i, card in enumerate(self._cards):
+            if i == 0:
+                continue
             geom = card.geometry()
-            # If we are above the center of this card, we want index i
             if y < geom.center().y():
                 return i
-        
-        # Otherwise, we are after the last card
-        # Cap at len - 1 to ensure we never drop after the blank step
-        return max(0, len(self._step_cards) - 1)
+        return max(1, len(self._cards) - 1)
 
     def _move_step(self, source_idx, target_idx):
-        """Move step from source_idx and insert before target_idx."""
+        # Don't move the source
+        if source_idx == 0 or target_idx == 0:
+            return
         if source_idx < target_idx:
             target_idx -= 1
-            
         step = self._steps.pop(source_idx)
         self._steps.insert(target_idx, step)
-        
-        # Clean up trailing empty steps (might have duplicates or misplaced one)
-        # Ensure only one blank at the end
-        self._steps = [s for s in self._steps if s.func_name]
+        self._steps = [self._steps[0]] + [s for s in self._steps[1:] if s.raw_expression]
         self._steps.append(PipelineStep())
-        
-        self._rebuild_step_cards()
+        self._rebuild_cards()
         self._on_commit()
 
     # ---- Internal: Commit ----
 
     def _on_commit(self):
-        """Recompose code from the editor state, validate, and fire event."""
         if self._committing:
             return
         self._committing = True
 
         try:
-            source = self._source_card.value
-            if not source:
+            # Sync steps from cards
+            for i, card in enumerate(self._cards):
+                if i < len(self._steps):
+                    self._steps[i] = PipelineStep(raw_expression=card.expression)
+
+            source_expr = self._steps[0].raw_expression if self._steps else ""
+            if not source_expr:
                 return
 
-            # Gather steps
-            steps_data: List[Tuple[str, List[str]]] = []
-            for step in self._steps:
-                if not step.func_name:
-                    continue  # skip blank steps
-                # Collect non-empty args
-                args = []
-                for val in step.param_values:
-                    args.append(val if val else "")
-                # Strip trailing empty args
-                while args and not args[-1]:
-                    args.pop()
-                steps_data.append((step.func_name, args))
+            # Build code directly
+            code = f"{self.variable_name} = {source_expr}"
+            for step in self._steps[1:]:
+                expr = step.raw_expression
+                if expr:
+                    code += f" |> {expr}"
 
-            code = compose_variable_code(self.variable_name, source, steps_data)
-
-            # Validate: try to parse
+            # Validate
             from kira.klanguage.ktokenizer import ktokenize, KTokenType
             from kira.klanguage.kast import kparse
 
@@ -1113,10 +1212,16 @@ class StepEditorPanel(QWidget):
                 logger.warning(f"Parse error — not committing: {e} - code: {code}")
                 return
 
-            # Fire event
             from kproject.kevent import KEventTypes
             self.project.process_event(KEventTypes.AddVariable, self.variable_name, code)
             logger.info(f"Committed: {code}")
 
+            # Ensure trailing empty card
+            has_trailing = self._steps and not self._steps[-1].raw_expression
+            if not has_trailing:
+                self._steps.append(PipelineStep())
+                self._rebuild_cards()
+
         finally:
             self._committing = False
+

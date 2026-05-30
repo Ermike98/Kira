@@ -407,58 +407,39 @@ QScrollBar::handle:vertical:hover {{
     color: {colors.text_primary};
 }}
 
-/* Source input styled as a minimalist box (replaces the card container) */
-#SourceCard {{
-    background-color: transparent;
-    border: none;
-    margin-bottom: {style_system.spacing_xxsmall};
-}}
-
-#StepSourceInput {{
+/* Expression Card (unified source + step card) */
+#ExpressionCard {{
     background-color: {colors.bg_panel};
     border: {style_system.border_thin} solid {colors.border_light};
     border-radius: {style_system.radius_large};
-    padding: {style_system.spacing_small} {style_system.spacing_medium};
-    font-family: {style_system.font_family_mono};
-    font-size: {style_system.font_small};
-    color: {colors.text_primary};
 }}
 
-#StepSourceInput:hover {{
+#ExpressionCard:hover {{
     border-color: {colors.border_medium};
 }}
 
-#StepSourceInput:focus {{
+/* Collapsed input */
+#StepCollapsedInput {{
+    font-family: {style_system.font_family_mono};
+    font-size: {style_system.font_small};
+    padding: {style_system.spacing_xxsmall} {style_system.spacing_xsmall};
+    border: {style_system.border_thin} solid {colors.border_light};
+    border-radius: {style_system.radius_medium};
+    background-color: transparent;
+    color: {colors.text_primary};
+}}
+
+#StepCollapsedInput:focus {{
     border-color: {colors.accent_focus};
+    background-color: {colors.bg_panel};
     outline: none;
 }}
 
-/* Step Card */
-#StepCard {{
-    background-color: {colors.bg_panel};
-    border: {style_system.border_thin} solid {colors.border_light};
-    border-radius: {style_system.radius_large};
-}}
-
-#StepCard:hover {{
-    border-color: {colors.border_medium};
-}}
-
-#StepBadge {{
-    font-size: {style_system.font_xsmall};
-    font-weight: 600;
-    color: {colors.text_tertiary};
-}}
-
-#StepFuncName {{
-    font-size: {style_system.font_small};
-    font-weight: 700;
-    color: {colors.text_primary};
-}}
-
+/* Function name input (expanded) */
 #StepFuncInput {{
     font-family: {style_system.font_family_mono};
     font-size: {style_system.font_small};
+    font-weight: 700;
     padding: {style_system.spacing_xxsmall} {style_system.spacing_xsmall};
     border: {style_system.border_thin} solid {colors.border_light};
     border-radius: {style_system.radius_medium};
@@ -468,6 +449,22 @@ QScrollBar::handle:vertical:hover {{
 #StepFuncInput:focus {{
     border-color: {colors.accent_focus};
     background-color: {colors.bg_panel};
+}}
+
+/* Chevron toggle */
+#StepExpandButton {{
+    background-color: transparent;
+    border: none;
+    border-radius: {style_system.radius_medium};
+    padding: 0px;
+}}
+
+#StepExpandButton:hover {{
+    background-color: {colors.bg_surface};
+}}
+
+#StepExpandButton[expandable="false"] {{
+    opacity: 0.3;
 }}
 
 #StepDragHandle {{
@@ -491,11 +488,12 @@ QScrollBar::handle:vertical:hover {{
     color: {colors.status_error};
 }}
 
-/* Step parameter row */
+/* Parameter rows */
 #StepParamLabel {{
     font-size: {style_system.font_small};
     color: {colors.text_secondary};
     font-weight: 500;
+    padding-bottom: 2px;
 }}
 
 #StepParamInput {{
@@ -514,6 +512,21 @@ QScrollBar::handle:vertical:hover {{
     outline: none;
 }}
 
+/* Extra param input (error) */
+#StepParamInputExtra {{
+    font-family: {style_system.font_family_mono};
+    font-size: {style_system.font_small};
+    padding: {style_system.spacing_xsmall} {style_system.spacing_small};
+    border: {style_system.border_thin} solid {colors.status_error};
+    border-radius: {style_system.radius_medium};
+    background-color: {colors.danger_light};
+    color: {colors.text_primary};
+}}
+
+#StepParamInputExtra:focus {{
+    border: {style_system.border_thin} solid {colors.status_error};
+    outline: none;
+}}
 
 /* Add step button */
 #AddStepButton {{
@@ -533,7 +546,7 @@ QScrollBar::handle:vertical:hover {{
     color: {colors.accent_hover};
 }}
 
-/* Pipeline arrow connector */
+/* Pipeline arrow */
 #PipelineArrow {{
     font-size: {style_system.font_medium};
     color: {colors.border_medium};
