@@ -309,3 +309,40 @@ Kira ships with several function libraries registered via `KLibrary`:
 | Table | `library/table_library.py` | Table/DataFrame operations. |
 
 Libraries are registered in `library/__init__.py` and loaded during `KProject` initialization.
+
+---
+
+## 12. Interactive DSL Interpreter (REPL) Stack
+
+The Kira REPL architecture is structured to support both headless programmatic validation (e.g., automated script testing) and interactive execution in the CLI and PySide6 graphical user interface.
+
+### **A. Component Structure**
+
+| Module | Location | Description |
+|--------|----------|-------------|
+| `KiraREPL` | `repl/repl_backend.py` | Headless interpreter backend. Evaluates lines or scripts synchronously. Free of any GUI dependencies. |
+| CLI Shell | `repl/repl_cli.py` | Textual interactive loop capturing inputs via `input()`. |
+| Root Entry | `run_repl.py` | Primary execution path for developer CLI shell interaction (`python run_repl.py`). |
+| `QReplConsole` | `gui/components/repl_console.py` | PySide6-based graphical console widget. |
+
+### **B. Expression Desugaring**
+To enable seamless interactive evaluation of arbitrary expressions (e.g., `5 + 10` or `mean(arr)`), `KiraREPL` performs internal compiler rewriting:
+1. When input is parsed, it evaluates the AST of the statement.
+2. If it compiles to a standalone `AstExpressionStmt` (excluding single-symbol lookups like `x`), the REPL rewrites the source code internally to `_ = <expression>`.
+3. This creates a virtual variable assignment, feeding the expression directly through the core `KProject` compiler, dependency-tracker, and evaluation queue.
+4. The result of the evaluation is permanently assigned to a system variable `_`, which can be queried in subsequent lines just like in a Python or MATLAB console.
+
+### **C. Reactive & Non-Blocking GUI Terminal**
+The `QReplConsole` widget replaces the bottom panel's static TERMINAL tab with a modern console styled in a premium **light theme** (clean white background matching `bg_panel`, soft gray borders, and distinct console layout).
+- **History Navigation**: Features Up/Down arrow key command history traversal inside a custom line editor (`ReplLineEdit`).
+- **Asynchronous Execution Flow**:
+  1. The user inputs a command in the console.
+  2. `QReplConsole` parses the line non-blockingly using the backend.
+  3. If it is a query, it outputs the formatted value immediately.
+  4. If it is an assignment/expression, it calls `QTProject.process_event()` and temporarily subscribes to the `status_changed` signal.
+  5. The GUI remains completely fluid and responsive while the daemon evaluation thread compiles and executes the variable.
+  6. Once the status transitions to `READY` or `ERROR`, the console fetches the value, prints it utilizing `format_value()`, and un-subscribes.
+
+### **D. Data Explorer Filtering**
+To ensure that internal interpreter variables do not clutter the user interface, `gui/components/sidebar.py` filters out `_` from showing up in the sidebar's Data Explorer variables list. The state is fully kept in the core project context, but masked in visual explorer panels.
+

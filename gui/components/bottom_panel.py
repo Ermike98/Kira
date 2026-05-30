@@ -6,7 +6,7 @@ class BottomPanel(QWidget):
     Tabbed panel at the bottom of the main window.
     Contains Logs, Errors, Code preview, etc.
     """
-    def __init__(self, parent=None):
+    def __init__(self, project=None, parent=None):
         super().__init__(parent)
         self.setObjectName("BottomPanel")
         self.setFixedHeight(200)
@@ -31,11 +31,16 @@ class BottomPanel(QWidget):
         self.error_widget.setPlaceholderText("No errors reported.")
         self.tabs.addTab(self.error_widget, "ERRORS")
         
-        # Terminal Tab (Placeholder)
-        self.terminal_widget = QTextEdit()
-        from gui.utils import colors
-        from gui import style_system
-        self.terminal_widget.setStyleSheet(f"background-color: {colors.text_primary}; color: {colors.bg_base}; font-family: 'Consolas', monospace; font-size: {style_system.font_small};")
+        # Terminal Tab (Interactive REPL Console)
+        if project is not None:
+            from gui.components.repl_console import QReplConsole
+            self.terminal_widget = QReplConsole(project)
+        else:
+            self.terminal_widget = QTextEdit()
+            from gui.utils import colors
+            from gui import style_system
+            self.terminal_widget.setStyleSheet(f"background-color: {colors.text_primary}; color: {colors.bg_base}; font-family: 'Consolas', monospace; font-size: {style_system.font_small};")
+        
         self.tabs.addTab(self.terminal_widget, "TERMINAL")
         
         layout.addWidget(self.tabs)

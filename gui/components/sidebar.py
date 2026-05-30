@@ -232,7 +232,8 @@ class Sidebar(QWidget):
             sm = self.project.kproject.state_manager
 
             if self.current_view == "Data":
-                self._populate_section("VARIABLES", sorted(sm.variables.keys()), "Variable", lambda: self.add_requested.emit("Variable"))
+                variables_keys = [k for k in sm.variables.keys() if k != "_"]
+                self._populate_section("VARIABLES", sorted(variables_keys), "Variable", lambda: self.add_requested.emit("Variable"))
                 self._populate_section("STATIC DATA", self.project.kproject.get_data_names(), "Data")
             elif self.current_view == "Workflows":
                 self._populate_section("USER WORKFLOWS", sorted(sm.workflows.keys()), "Workflow", lambda: self.add_requested.emit("Workflow"))

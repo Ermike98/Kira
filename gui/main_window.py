@@ -118,7 +118,7 @@ class MainWindow(QMainWindow):
         self.content_tabs.tabCloseRequested.connect(self._close_tab)
         self.content_container.addWidget(self.content_tabs)
 
-        self.bottom_panel = BottomPanel()
+        self.bottom_panel = BottomPanel(self.project)
         self.content_container.addWidget(self.bottom_panel)
 
         self.main_splitter.setStretchFactor(1, 1)
