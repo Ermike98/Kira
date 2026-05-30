@@ -12,7 +12,7 @@ from kira.kdata.karray import K_ARRAY_INTEGER_TYPE, K_ARRAY_NUMBER_TYPE, K_ARRAY
 from kira.kdata.kdata import KData, KDataValue
 from kira.kdata.kliteral import K_BOOLEAN_TYPE, K_INTEGER_TYPE, K_NUMBER_TYPE, K_STRING_TYPE, KLiteral, KLiteralType
 from kira.kdata.kerrorvalue import KErrorValue
-from kira.kdata.ktable import KTable, KTableTypeInfo
+from kira.kdata.ktable import KTable, KTableTypeInfo, K_TABLE_TYPE
 from kira.kexpections.kgenericexception import KGenericException
 from kira.knodes.kfunction import KFunction, kfunction
 from kira.ktypeinfo.any_type import KAnyTypeInfo
@@ -375,3 +375,21 @@ def k_table(columns: KData):
     return [KTable(pd.DataFrame(data))]
 
 k_builtin_library.register(k_table)
+
+# load_csv(filepath: string, sep: string = ",") -> table
+@kfunction(
+    inputs=[("filepath", K_STRING_TYPE), ("sep", K_STRING_TYPE)],
+    outputs=[("y", K_TABLE_TYPE)],
+    name="load_csv",
+    use_values=True,
+    use_context=False,
+    default_inputs={"sep": KLiteral(",", KLiteralType.STRING)}
+)
+def k_table_load_csv(filepath_obj: KLiteral, sep_obj: KLiteral):
+    try:
+        df = pd.read_csv(filepath_obj.value, sep=sep_obj.value)
+        return [KTable(df)]
+    except Exception as e:
+        return [KErrorValue(KGenericException(f"Error loading CSV: {str(e)}"))]
+
+k_builtin_library.register(k_table_load_csv)
