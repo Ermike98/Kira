@@ -1,0 +1,4 @@
+# Ignore all agent sandbox files except the gitignore and the README itself
+*
+!.gitignore
+!README.md

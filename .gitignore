@@ -1,6 +1,5 @@
 .idea
 *__pycache__
-tests/
 discarded_files/
 gui/icons/
 marketing

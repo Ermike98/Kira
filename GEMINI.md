@@ -346,3 +346,21 @@ The `QReplConsole` widget replaces the bottom panel's static TERMINAL tab with a
 ### **D. Data Explorer Filtering**
 To ensure that internal interpreter variables do not clutter the user interface, `gui/components/sidebar.py` filters out `_` from showing up in the sidebar's Data Explorer variables list. The state is fully kept in the core project context, but masked in visual explorer panels.
 
+---
+
+## 13. Multi-Tiered Testing Strategy
+
+Kira uses a highly automated, multi-tiered testing strategy structured to guarantee core correctness, compiler robustness, and event-sourced persistence reliability.
+
+### **A. Core Pillars**
+1.  **Isolated Unit Tests (`tests/unit/`)**: Verify individual algorithms, specific mathematical expressions, evaluation status state-machine transitions, AST nodes, and persistence engine layers in microsecond timescales.
+2.  **Golden Master Snapshots (`tests/snapshots/`)**: Run end-to-end kscript files through a headless `KiraREPL` instance and compare step-by-step evaluation transcripts character-by-character against committed Golden Master reference files.
+3.  **Stress Fuzzing & Property Tests (`tests/pseudo_random/`)**:
+    *   **Syntax Perturbation**: Mutates valid scripts to confirm that the lexer, parser, and builder never throw unhandled python exceptions.
+    *   **Graceful Parsing Recovery**: Confirms that common user errors (like omitting quotes in file paths) fail with clean, structured exceptions rather than background daemon crashes.
+    *   **State Reconstruction Invariant**: Generates random event streams (Add, Edit, Undo, Redo) and verifies that the sequential memory state perfectly equals the reconstructed state from the event log.
+4.  **LLM Agent Sandbox (`tests/llm/`)**: Dedicated ignored zone for development agents to test, run, and experiment with code files cleanly.
+
+### **B. Orchestration & PYTHONPATH Integration**
+All tests are managed via `run_tests.py` which exposes clean cli flags (`--suite`, `--update-snapshots`) and dynamically injects `PYTHONPATH` context, resolving platform import inconsistencies and preventing `ModuleNotFoundError` out-of-the-box.
+
