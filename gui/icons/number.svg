@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather feather-number">
+  <!-- Number 1 -->
+  <polyline points="3 7 7 3 7 21"></polyline>
+  <line x1="3" y1="21" x2="11" y2="21"></line>
+  
+  <!-- Number 2 -->
+  <path d="M13 7a4 4 0 0 1 8 0c0 5-8 7-8 14h8"></path>
+</svg>
