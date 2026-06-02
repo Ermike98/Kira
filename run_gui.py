@@ -12,6 +12,11 @@ from gui.main_window import MainWindow
 from gui.qt_project import QTProject
 from kproject.kproject import KProject
 from kproject.kpersistence_manager import KPersistenceManager
+import sys
+
+if sys.platform == "win32":
+    import ctypes
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("kira.data.desktop.v1")
 
 def run_app():
     app = QApplication(sys.argv)

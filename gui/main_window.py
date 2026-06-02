@@ -31,6 +31,12 @@ class MainWindow(QMainWindow):
         self.resize(1280, 800)
         self.setMinimumSize(640, 400)
 
+        # Set application window icon using the static brand icon
+        import os
+        from PySide6.QtGui import QIcon
+        icon_path = os.path.join(os.path.dirname(__file__), "icons", "kira.png")
+        self.setWindowIcon(QIcon(icon_path))
+
         self._setup_menu()
         self._setup_ui()
         self._apply_theme()
@@ -224,6 +230,11 @@ class MainWindow(QMainWindow):
 # ---------------------------------------------------------------------------
 
 def run_gui(project_or_kproject):
+    import sys
+    if sys.platform == "win32":
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("kira.data.desktop.v1")
+
     from gui.qt_project import QTProject
     from kproject.kproject import KProject
     
