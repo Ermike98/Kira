@@ -50,8 +50,18 @@ def main():
     
     os.makedirs(references_dir, exist_ok=True)
     
-    # Get all .kscript files
-    kscripts = [f for f in os.listdir(test_files_dir) if f.endswith(".kscript")]
+    # Get all .kscript files recursively
+    kscripts = []
+    for root, dirs, files in os.walk(test_files_dir):
+        # Skip the shared_data folder
+        if "shared_data" in os.path.split(root)[1]:
+            continue
+        for file in files:
+            if file.endswith(".kscript"):
+                rel_path = os.path.relpath(os.path.join(root, file), test_files_dir)
+                normalized_rel_path = rel_path.replace(os.sep, "/")
+                kscripts.append(normalized_rel_path)
+
     if not kscripts:
         print("No .kscript files found in tests/test_files/.")
         sys.exit(0)
@@ -73,6 +83,7 @@ def main():
             continue
             
         if args.update:
+            os.makedirs(os.path.dirname(ref_path), exist_ok=True)
             with open(ref_path, "w", encoding="utf-8") as f:
                 f.write(transcript)
             print(f"[OK] Updated reference for {script_name}")

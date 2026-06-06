@@ -1,0 +1,118 @@
+# --- INTEGER LITERALS ---
+i1 = 3
+i2 = 7
+int_add = i1 + i2
+int_sub = i1 - i2
+int_pow = i1 ^ i2
+int_expr = (i1 + i2 + 10) * (2 + 0 + int_sub)
+
+# --- NUMBER (FLOAT) LITERALS ---
+n1 = 2.3
+n2 = 3.5
+num_add = n1 + n2
+num_sub = n1 - n2
+num_pow = n1 ^ n2
+num_div = n1 / n2
+mix_div = i1 / i2
+
+# --- STRING LITERALS ---
+s1 = ""
+s2 = "abc"
+s3 = "123"
+str_sum = s1 + s2 + s3
+str_prod_empty = s1 * 3
+str_prod = s2 * 3
+str_prod_expr = s2 * (i1 + i2)
+
+# --- DIVISION BY ZERO ---
+err_div_zero_int = i1 / 0
+err_div_zero_num = n1 / 0
+err_div_neg_zero_int = i1 / (-0)
+err_div_neg_zero_num = n1 / (-0)
+
+# --- BOOLEAN STATICS & DYNAMIC LOGIC ---
+b1 = true
+b2 = false
+
+bool_gt_int1 = i1 > 5
+bool_gt_int2 = i2 > 5
+bool_gt_expr = int_sub > 0
+bool_gt_num1 = n1 > 3
+bool_gt_num2 = n2 > 3
+bool_gt_num3 = n2 > 3.1
+bool_and = bool_gt_int1 and bool_gt_int2
+bool_or = bool_gt_int1 or bool_gt_int2
+bool_not_and = (!bool_gt_int1) and bool_gt_int2
+bool_not_expr = !b2 and b1
+bool_not_expr_paren = (!b2) and b1
+
+# --- SYSTEMATIC COMPARISONS (TRUE & FALSE CASES) ---
+comp_int_less_t = i1 < i2
+comp_int_less_f = i2 < i1
+comp_int_lesseq_t = i1 <= i2
+comp_int_lesseq_f = i2 <= i1
+comp_int_greater_t = i2 > i1
+comp_int_greater_f = i1 > i2
+comp_int_greatereq_t = i2 >= i1
+comp_int_greatereq_f = i1 >= i2
+comp_int_eq_t = i1 == i1
+comp_int_eq_f = i1 == i2
+comp_int_neq_t = i1 != i2
+comp_int_neq_f = i1 != i1
+
+comp_num_less_t = n1 < n2
+comp_num_less_f = n2 < n1
+comp_num_lesseq_t = n1 <= n2
+comp_num_lesseq_f = n2 <= n1
+comp_num_greater_t = n2 > n1
+comp_num_greater_f = n1 > n2
+comp_num_greatereq_t = n2 >= n1
+comp_num_greatereq_f = n1 >= n2
+comp_num_eq_t = n1 == n1
+comp_num_eq_f = n1 == n2
+comp_num_neq_t = n1 != n2
+comp_num_neq_f = n1 != n1
+
+comp_str_less_t = s3 < s2
+comp_str_less_f = s2 < s3
+comp_str_lesseq_t = s3 <= s2
+comp_str_lesseq_f = s2 <= s3
+comp_str_greater_t = s2 > s3
+comp_str_greater_f = s3 > s2
+comp_str_greatereq_t = s2 >= s3
+comp_str_greatereq_f = s3 >= s2
+comp_str_eq_t = s2 == s2
+comp_str_eq_f = s2 == s3
+comp_str_neq_t = s2 != s3
+comp_str_neq_f = s2 != s2
+
+# Direct String Literal Comparisons
+comp_str_lit_less_t = "abc" < "def"
+comp_str_lit_less_f = "def" < "abc"
+comp_str_lit_lesseq_t = "abc" <= "def"
+comp_str_lit_lesseq_f = "def" <= "abc"
+comp_str_lit_greater_t = "def" > "abc"
+comp_str_lit_greater_f = "abc" > "def"
+comp_str_lit_greatereq_t = "def" >= "abc"
+comp_str_lit_greatereq_f = "abc" >= "def"
+comp_str_lit_eq_t = "abc" == "abc"
+comp_str_lit_eq_f = "abc" == "def"
+comp_str_lit_neq_t = "abc" != "def"
+comp_str_lit_neq_f = "abc" != "abc"
+
+# --- TYPE MISMATCH / ERROR STATES ---
+err_add_num_str1 = 1 + "a"
+err_add_num_str2 = 2.5 + "b"
+err_add_bool_str = "a" + b1
+err_neg_str = -"abc"
+err_neg_bool = -b1
+err_not_str = !"abc"
+err_not_num = !5.5
+err_and_str = "abc" and b1
+err_or_num = 1.5 or b2
+err_mul_str_float = "abc" * 2.5
+err_mul_str_str = "abc" * "def"
+err_sub_str = "abc" - "def"
+err_comp_str_int = "abc" > 5
+err_comp_str_bool = "abc" == b1
+

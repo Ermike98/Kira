@@ -1,0 +1,144 @@
+# --- INTEGER ARRAYS ---
+i1 = [3, 4]
+i2 = [7, 10]
+int_arr_add = i1 + i2
+int_arr_sub = i1 - i2
+int_arr_pow = i1 ^ i2
+int_arr_expr = (i1 + i2 + 10) * ([1, 2] + 0 + int_arr_sub)
+
+# --- NUMBER (FLOAT) ARRAYS ---
+n1 = [2.3, 1.0, 0.9, -1.2]
+n2 = [3.5, 5.2, 0.0, 1.0]
+num_arr_add = n1 + n2
+num_arr_sub = n1 - n2
+num_arr_pow = n1 ^ n2
+num_arr_div = n1 / n2
+mix_arr_div = i1 / i2
+
+# --- STRING ARRAYS ---
+s1 = ["", "abc"]
+s2 = "abc"
+s3 = ["123", "456"]
+str_arr_sum = s1 + s2 + s3
+str_arr_prod_empty = s1 * 3
+str_arr_prod = s2 * 3
+str_arr_prod_expr = s1 * (i1 + i2)
+
+# --- DIVISION BY ZERO (ARRAYS) ---
+err_arr_div_zero_int = i1 / 0
+err_arr_div_zero_num = n1 / 0
+err_arr_div_neg_zero_int = i1 / (-0)
+err_arr_div_neg_zero_num = n1 / (-0)
+
+# --- BOOLEAN STATICS & DYNAMIC LOGIC ---
+b1 = [true, true, false, false]
+b2 = [true, false, true, false]
+b3 = false
+
+bool_arr_gt_int1 = i1 > 5
+bool_arr_gt_int2 = i2 > 5
+bool_arr_gt_expr = int_arr_sub > 0
+bool_arr_gt_num1 = n1 > 3
+bool_arr_gt_num2 = n2 > 3
+bool_arr_gt_num3 = n2 > 3.1
+bool_arr_and = bool_arr_gt_int1 and bool_arr_gt_int2
+bool_arr_or = bool_arr_gt_int1 or bool_arr_gt_int2
+bool_arr_not_and = (!bool_arr_gt_int1) and bool_arr_gt_int2
+bool_arr_not_expr = !b2 and b1
+bool_arr_not_expr_paren = (!b2) and b1
+bool_arr_and_scalar = b1 and b3
+
+# --- MIXED ARRAY-SCALAR ARITHMETIC ---
+mix_add_arr_sc = i1 + 10
+mix_add_sc_arr = 10 + i1
+mix_sub_arr_sc = n1 - 0.5
+mix_sub_sc_arr = 5.0 - n1
+mix_mul_arr_sc = i1 * 4
+mix_mul_sc_arr = 4 * i1
+mix_div_arr_sc = n1 / 2.0
+mix_div_sc_arr = 10.0 / n1
+mix_pow_arr_sc = i1 ^ 2
+mix_pow_sc_arr = 2 ^ i1
+
+# --- UNARY NEGATION ---
+neg_arr1 = -i1
+neg_arr2 = -n1
+
+# --- STRING ARRAY AND SCALAR COMBINATIONS ---
+mix_str_sum1 = "hello " + s1
+mix_str_sum2 = s1 + "!"
+mix_str_prod1 = s1 * 3
+mix_str_prod2 = 3 * s1
+
+# --- DIVISION BY ZERO IN EXPRESSIONS ---
+div_arr_zero = i1 / 0
+div_scalar_zero_arr = 10 / [0, 2]
+div_arr_zero_arr = [1, 2] / [0, 1]
+
+# --- SYSTEMATIC COMPARISONS (TRUE, FALSE, MIXED CASES) ---
+comp_arr_sc_less_t = i1 < 10
+comp_arr_sc_less_f = i1 < 2
+comp_arr_sc_less_m = i1 < 4
+
+comp_arr_sc_lesseq_t = i1 <= 4
+comp_arr_sc_lesseq_f = i1 <= 2
+comp_arr_sc_lesseq_m = i1 <= 3
+
+comp_arr_sc_greater_t = i1 > 2
+comp_arr_sc_greater_f = i1 > 10
+comp_arr_sc_greater_m = i1 > 3
+
+comp_arr_sc_greatereq_t = i1 >= 3
+comp_arr_sc_greatereq_f = i1 >= 10
+comp_arr_sc_greatereq_m = i1 >= 4
+
+comp_arr_sc_eq_t = i1 == i1
+comp_arr_sc_eq_f = i1 == i2
+comp_arr_sc_eq_m = i1 == 3
+
+comp_arr_sc_neq_t = i1 != i2
+comp_arr_sc_neq_f = i1 != i1
+comp_arr_sc_neq_m = i1 != 3
+
+# --- SYSTEMATIC STRING ARRAY COMPARISONS ---
+comp_str_arr_sc_less_t = s3 < "abc"
+comp_str_arr_sc_less_f = s3 < "000"
+comp_str_arr_sc_less_m = s3 < "200"
+
+comp_str_arr_sc_lesseq_t = s3 <= "456"
+comp_str_arr_sc_lesseq_f = s3 <= "000"
+comp_str_arr_sc_lesseq_m = s3 <= "300"
+
+comp_str_arr_sc_greater_t = s3 > "000"
+comp_str_arr_sc_greater_f = s3 > "abc"
+comp_str_arr_sc_greater_m = s3 > "200"
+
+comp_str_arr_sc_greatereq_t = s3 >= "123"
+comp_str_arr_sc_greatereq_f = s3 >= "abc"
+comp_str_arr_sc_greatereq_m = s3 >= "200"
+
+comp_str_arr_sc_eq_t = s3 == s3
+comp_str_arr_sc_eq_f = s1 == s3
+comp_str_arr_sc_eq_m = s3 == "123"
+
+comp_str_arr_sc_neq_t = s1 != s3
+comp_str_arr_sc_neq_f = s3 != s3
+comp_str_arr_sc_neq_m = s3 != "123"
+
+# --- LOGICAL OPERATION VARIATIONS ---
+log_arr_sc_and_t = b1 and true
+log_arr_sc_and_f = b1 and false
+log_arr_sc_or_t = b1 or true
+log_arr_sc_or_f = b1 or false
+log_arr_arr_and = b1 and b2
+log_arr_arr_or = b1 or b2
+log_not_arr = !b1
+
+# --- ARRAY ERROR STATES ---
+err_arr_diff_len = [1, 2] + [1, 2, 3]
+err_arr_add_mismatch = i1 + "abc"
+err_arr_mul_float = s1 * 1.5
+err_arr_mul_diff_len = s1 * [1, 2, 3]
+err_arr_comp_str_int = s3 > i1
+err_arr_comp_str_bool = s3 == b3
+
