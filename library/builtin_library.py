@@ -60,9 +60,11 @@ def _k_add_impl(val1_obj, val2_obj):
 
     if is_val1_str and is_val2_str:
         if not isinstance(val1, pd.Series) and not isinstance(val2, pd.Series):
-            return [KLiteral(np.char.add(val1, val2)[()], KLiteralType.STRING)]
+            return [KLiteral(str(val1) + str(val2), KLiteralType.STRING)]
         
         if isinstance(val1, pd.Series) and isinstance(val2, pd.Series):
+            if len(val1) != len(val2):
+                return [KErrorValue(KGenericException(f"Cannot perform operation on arrays of different lengths: {len(val1)} and {len(val2)}"))]
             result = pd.Series([str(s1) + str(s2) for s1, s2 in zip(val1, val2)], dtype="string")
         elif isinstance(val1, pd.Series):
             result = val1.astype(str) + str(val2)
@@ -71,6 +73,9 @@ def _k_add_impl(val1_obj, val2_obj):
         return [KArray(result)]
     elif not is_val1_str and not is_val2_str:
         # Both numeric (or boolean)
+        if isinstance(val1, pd.Series) and isinstance(val2, pd.Series):
+            if len(val1) != len(val2):
+                return [KErrorValue(KGenericException(f"Cannot perform operation on arrays of different lengths: {len(val1)} and {len(val2)}"))]
         result = np.add(val1, val2)
         if isinstance(result, (pd.Series, list)) or (isinstance(result, np.ndarray) and result.ndim > 0):
             return [KArray(result)]
@@ -127,7 +132,7 @@ def _k_multiply_impl(val1_obj, val2_obj):
         # Check for scalar multiplication
         if not isinstance(string_val, pd.Series) and not isinstance(int_val, pd.Series):
             if isinstance(int_val, (int, np.integer)):
-                result = np.char.multiply(string_val, int_val)[()]
+                result = str(string_val) * int(int_val)
                 return [KLiteral(result)]
             else:
                 return [
@@ -135,6 +140,8 @@ def _k_multiply_impl(val1_obj, val2_obj):
         
         # Vectorized multiplication: at least one is a pd.Series
         if isinstance(string_val, pd.Series) and isinstance(int_val, pd.Series):
+            if len(string_val) != len(int_val):
+                return [KErrorValue(KGenericException(f"Cannot perform operation on arrays of different lengths: {len(string_val)} and {len(int_val)}"))]
             result = pd.Series([s * n for s, n in zip(string_val, int_val)], dtype="string")
         elif isinstance(string_val, pd.Series):
             result = string_val.astype(str) * int_val
@@ -143,6 +150,9 @@ def _k_multiply_impl(val1_obj, val2_obj):
         return [KArray(result)]
 
     # Both numeric
+    if isinstance(val1, pd.Series) and isinstance(val2, pd.Series):
+        if len(val1) != len(val2):
+            return [KErrorValue(KGenericException(f"Cannot perform operation on arrays of different lengths: {len(val1)} and {len(val2)}"))]
     result = np.multiply(val1, val2)
     if isinstance(result, (pd.Series, list)) or (isinstance(result, np.ndarray) and result.ndim > 0):
         return [KArray(result)]
