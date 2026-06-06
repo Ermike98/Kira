@@ -1,5 +1,6 @@
 import time
 import traceback
+import pandas as pd
 from datetime import datetime
 from typing import Optional, Dict, Any, Union
 
@@ -9,7 +10,7 @@ from kproject.kevent import KEvent, KEventTypes
 from kproject.kevaluator import KVariableStatus
 from kira.core.kobject import KObject
 from kira.kdata.kdata import KData
-from kira.kdata.kliteral import KLiteral
+from kira.kdata.kliteral import KLiteral, KLiteralType
 from kira.kdata.karray import KArray
 from kira.kdata.ktable import KTable
 from kira.kdata.kcollection import KCollection
@@ -33,9 +34,16 @@ def format_value(name: str, obj: Any) -> str:
         lines.append(value.value.to_string(index=True, max_rows=20, max_cols=10))
     elif isinstance(value, KArray):
         lines.append(f"  {name} = Array ({len(value.value)} elements, {value.lit_type.name})")
-        lines.append(f"  {value.value.to_string(index=True, max_rows=20)}")
+        if value.lit_type == KLiteralType.STRING:
+            quoted_series = value.value.map(lambda x: f'"{x}"' if pd.notna(x) else x)
+            lines.append(quoted_series.to_string(index=True, max_rows=20))
+        else:
+            lines.append(value.value.to_string(index=True, max_rows=20))
     elif isinstance(value, KLiteral):
-        lines.append(f"  {name} = {value.value} ({value.lit_type.name})")
+        if value.lit_type == KLiteralType.STRING:
+            lines.append(f'  {name} = "{value.value}" ({value.lit_type.name})')
+        else:
+            lines.append(f"  {name} = {value.value} ({value.lit_type.name})")
     elif isinstance(value, KCollection):
         lines.append(f"  {name} = Collection ({len(value.value)} items)")
         for item in value.value:
