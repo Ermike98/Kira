@@ -90,6 +90,13 @@ class KNodeInstance(KObject):
 
             evaluated.append(res)
 
+        # Check if any input evaluated to an error, and propagate it
+        for res in evaluated:
+            if not res:
+                result = KData(self.name, None, res.error)
+                context.register_object(result)
+                return result
+
         # 2. Build inputs dict
         inputs = {}
 

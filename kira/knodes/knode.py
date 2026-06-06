@@ -102,8 +102,7 @@ class KNode(KObject):
         for i, t, name in zip(output_val, self._outputs_types, self._outputs_names):
             # check output is valid
             if isinstance(i.type, KExceptionTypeInfo):
-                kdata_list.append(KData(name, None, KNodeException(self, KNodeExceptionType.FAILED_OUTPUT,
-                                                                   failed_output=i.value)))
+                kdata_list.append(KData(name, None, i.value))
             # check output type
             elif not t.match(KData(name, i)):
                 kdata_list.append(KData(name, None, KNodeException(self, KNodeExceptionType.WRONG_OUTPUT_TYPES,

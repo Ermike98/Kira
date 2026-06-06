@@ -21,4 +21,4 @@ class KNodeException(KException):
         self._kwargs = kwargs
 
     def __repr__(self):
-        return f"KNodeException(node={repr(self._node)}, type={repr(self._type)}, message={repr(self._message)}, kwargs={repr(self._kwargs)})"
+        return f"KNodeException(node={repr(self._node.name)}, type={repr(self._type)}, message={repr(self._message)}, kwargs={repr(self._kwargs)})"
